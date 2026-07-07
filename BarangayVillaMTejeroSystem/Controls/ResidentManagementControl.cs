@@ -464,6 +464,8 @@ namespace BarangayVillaMTejeroSystem.Controls
             if (dlg.ShowDialog(FindForm()) == DialogResult.OK && dlg.Result != null)
             {
                 ResidentService.AddResident(dlg.Result);
+                TransactionLogService.Log(LogType.Resident, "Registered resident",
+                    _currentUser.FullName, _currentUser.UserId, $"{dlg.Result.FullName} added to Resident Records");
                 RefreshGrid();
                 MessageBox.Show($"\"{dlg.Result.FullName}\" was registered successfully.",
                     "Resident Added", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -476,6 +478,8 @@ namespace BarangayVillaMTejeroSystem.Controls
             if (dlg.ShowDialog(FindForm()) == DialogResult.OK && dlg.Result != null)
             {
                 ResidentService.UpdateResident(dlg.Result);
+                TransactionLogService.Log(LogType.Resident, "Updated resident",
+                    _currentUser.FullName, _currentUser.UserId, $"{dlg.Result.FullName} profile updated");
                 RefreshGrid();
             }
         }
@@ -501,6 +505,8 @@ namespace BarangayVillaMTejeroSystem.Controls
                 if (confirm == DialogResult.Yes)
                 {
                     ResidentService.SetActive(resident.ResidentId, true);
+                    TransactionLogService.Log(LogType.Resident, "Reactivated resident",
+                        _currentUser.FullName, _currentUser.UserId, $"{resident.FullName} marked active again");
                     RefreshGrid();
                 }
                 return;
@@ -513,6 +519,9 @@ namespace BarangayVillaMTejeroSystem.Controls
             if (promptDialog.ShowDialog(FindForm()) == DialogResult.OK)
             {
                 ResidentService.SetActive(resident.ResidentId, false, promptDialog.ReasonText);
+                TransactionLogService.Log(LogType.Resident, "Deactivated resident",
+                    _currentUser.FullName, _currentUser.UserId, $"{resident.FullName} deactivated" +
+                    (string.IsNullOrWhiteSpace(promptDialog.ReasonText) ? "" : $" — {promptDialog.ReasonText}"));
                 RefreshGrid();
             }
         }

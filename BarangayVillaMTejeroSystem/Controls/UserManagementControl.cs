@@ -438,7 +438,8 @@ namespace BarangayVillaMTejeroSystem.Controls
 
         private void OpenEditDialog(UserAccount account)
         {
-            using var dlg = UserFormDialog.CreateForEdit(account);
+            bool isOwnAccount = account.UserId == _currentUser.UserId;
+            using var dlg = UserFormDialog.CreateForEdit(account, isOwnAccount);
             if (dlg.ShowDialog(FindForm()) == DialogResult.OK && dlg.Result != null)
             {
                 UserService.UpdateAccount(dlg.Result);

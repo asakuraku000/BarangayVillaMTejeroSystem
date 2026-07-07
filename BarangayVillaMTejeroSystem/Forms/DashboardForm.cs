@@ -270,11 +270,8 @@ namespace BarangayVillaMTejeroSystem.Forms
             {
                 "dashboard" => BuildDashboardPanel(),
                 "residents" => new ResidentManagementControl(_user),
-                "documents" => BuildPlaceholderPanel("📄", "Barangay Documents && Clearance Issuance",
-                    "Generate certificates of residency, indigency, and clearances.\nThis module will be available in the next development phase."),
-                "logs" => BuildPlaceholderPanel("📊", "Transaction Logs",
-                    (_user.Role == UserRole.Staff ? "View-only access for staff accounts.\n" : "") +
-                    "Full audit trail of system activity will appear here.\nThis module will be available in the next development phase."),
+                "documents" => new DocumentIssuanceControl(_user),
+                "logs" => new TransactionLogsControl(_user),
                 "users" => _user.Role == UserRole.Administrator
                     ? new UserManagementControl(_user)
                     : BuildPlaceholderPanel("👤", "User Management",
@@ -350,8 +347,8 @@ namespace BarangayVillaMTejeroSystem.Forms
             var stats = new[]
             {
                 ("👥", "Total Residents",    ResidentCountPlaceholder(), Color.FromArgb(27, 90, 130)),
-                ("📄", "Documents Issued",   "0",                     Color.FromArgb(200, 29, 37)),
-                ("⏳", "Pending Requests",   "0",                     Color.FromArgb(214, 158, 46)),
+                ("📄", "Documents Issued",   DocumentsIssuedPlaceholder(), Color.FromArgb(200, 29, 37)),
+                ("⏳", "Pending Requests",   PendingRequestsPlaceholder(), Color.FromArgb(214, 158, 46)),
                 ("🔐", "Registered Users",   UserCountPlaceholder(),  Color.FromArgb(60, 130, 90)),
             };
             foreach (var (icon, title, value, accent) in stats)
@@ -389,15 +386,58 @@ namespace BarangayVillaMTejeroSystem.Forms
                 AutoSize = true,
                 Location = new Point(20, 18)
             });
-            activityCard.Controls.Add(new Label
+
+            // Live recent activity from the Transaction Logs audit trail.
+            int ay = 52;
+            var recent = Services.TransactionLogService.GetRecent(6);
+            if (recent.Count == 0)
             {
-                Text = "No recent activity yet.\nThis panel will populate once the Transaction Log module is connected to live data.",
-                Font = new Font("Segoe UI", 9.5f),
-                ForeColor = Color.FromArgb(150, 158, 170),
-                AutoSize = false,
-                Size = new Size(600, 48),
-                Location = new Point(20, 52)
-            });
+                activityCard.Controls.Add(new Label
+                {
+                    Text = "No recent activity yet.",
+                    Font = new Font("Segoe UI", 9.5f),
+                    ForeColor = Color.FromArgb(150, 158, 170),
+                    AutoSize = false,
+                    Size = new Size(600, 30),
+                    Location = new Point(20, ay)
+                });
+            }
+            else
+            {
+                foreach (var log in recent)
+                {
+                    var dot = new Panel
+                    {
+                        Location = new Point(24, ay + 6),
+                        Size = new Size(8, 8),
+                        BackColor = log.Type.Color()
+                    };
+                    activityCard.Controls.Add(dot);
+
+                    var entry = new Label
+                    {
+                        Text = $"{log.Action}  —  {log.Actor}",
+                        Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                        ForeColor = NavyDark,
+                        AutoSize = false,
+                        Size = new Size(activityCard.Width - 60, 18),
+                        Location = new Point(40, ay)
+                    };
+                    activityCard.Controls.Add(entry);
+
+                    var sub = new Label
+                    {
+                        Text = log.TimestampLabel,
+                        Font = new Font("Segoe UI", 8f),
+                        ForeColor = Color.FromArgb(150, 158, 170),
+                        AutoSize = false,
+                        Size = new Size(activityCard.Width - 60, 16),
+                        Location = new Point(40, ay + 17)
+                    };
+                    activityCard.Controls.Add(sub);
+                    ay += 30;
+                }
+            }
 
             // Divider line under "Recent Activity" title
             activityCard.Controls.Add(new Panel
@@ -426,6 +466,16 @@ namespace BarangayVillaMTejeroSystem.Forms
         private string ResidentCountPlaceholder()
         {
             return Services.ResidentService.TotalActiveResidents.ToString();
+        }
+
+        private string DocumentsIssuedPlaceholder()
+        {
+            return Services.DocumentService.TotalIssued.ToString();
+        }
+
+        private string PendingRequestsPlaceholder()
+        {
+            return Services.DocumentService.PendingRequests.ToString();
         }
 
         private Control BuildPlaceholderPanel(string icon, string title, string subtitle)
@@ -510,6 +560,8 @@ namespace BarangayVillaMTejeroSystem.Forms
 
             if (result == DialogResult.Yes)
             {
+                Services.TransactionLogService.Log(LogType.Authentication, "Signed out", _user.FullName, _user.UserId,
+                    $"{_user.RoleLabel} session ended");
                 Close();
             }
         }

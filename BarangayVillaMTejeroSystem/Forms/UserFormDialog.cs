@@ -21,6 +21,8 @@ namespace BarangayVillaMTejeroSystem.Forms
         private static readonly Color AccentRed = Color.FromArgb(200, 29, 37);
 
         private readonly int _editingUserId; // 0 = adding a new account
+        private readonly bool _isOwnAccount;  // true when the logged-in user is editing their own account
+        private UserRole? _originalRole;      // locked-in role when _isOwnAccount, regardless of combo state
 
         private TextBox _txtFullName;
         private TextBox _txtUsername;
@@ -37,23 +39,30 @@ namespace BarangayVillaMTejeroSystem.Forms
 
         public static UserFormDialog CreateForAdd()
         {
-            return new UserFormDialog(0);
+            return new UserFormDialog(0, isOwnAccount: false);
         }
 
-        public static UserFormDialog CreateForEdit(UserAccount account)
+        /// <summary>
+        /// isOwnAccount: pass true when the account being edited belongs to the
+        /// currently logged-in user. This locks the Role field so an admin
+        /// can't change their own access level out from under themselves.
+        /// </summary>
+        public static UserFormDialog CreateForEdit(UserAccount account, bool isOwnAccount = false)
         {
-            var dlg = new UserFormDialog(account.UserId);
+            var dlg = new UserFormDialog(account.UserId, isOwnAccount);
             dlg._txtFullName.Text = account.FullName;
             dlg._txtUsername.Text = account.Username;
             dlg._txtPosition.Text = account.Position;
             dlg._txtContactNo.Text = account.ContactNo;
             dlg._cmbRole.SelectedIndex = account.Role == UserRole.Administrator ? 0 : 1;
+            dlg._originalRole = account.Role;
             return dlg;
         }
 
-        private UserFormDialog(int editingUserId)
+        private UserFormDialog(int editingUserId, bool isOwnAccount)
         {
             _editingUserId = editingUserId;
+            _isOwnAccount = isOwnAccount;
             BuildUi();
         }
 
@@ -154,7 +163,27 @@ namespace BarangayVillaMTejeroSystem.Forms
             _cmbRole.Items.Add("Staff");
             _cmbRole.SelectedIndex = 1;
             scrollArea.Controls.Add(_cmbRole);
-            y += 40;
+            y += 34;
+
+            if (_isOwnAccount)
+            {
+                _cmbRole.Enabled = false;
+                var lblRoleNote = new Label
+                {
+                    Text = "You can't change your own role while logged in.",
+                    Font = new Font("Segoe UI", 8f, FontStyle.Italic),
+                    ForeColor = MutedText,
+                    AutoSize = false,
+                    Size = new Size(364, 16),
+                    Location = new Point(28, y)
+                };
+                scrollArea.Controls.Add(lblRoleNote);
+                y += 22;
+            }
+            else
+            {
+                y += 6;
+            }
 
             // ----- Password -----
             _lblPasswordCaption = new Label
@@ -300,6 +329,10 @@ namespace BarangayVillaMTejeroSystem.Forms
             string password = _txtPassword.Text;
             string confirmPassword = _txtConfirmPassword.Text;
             var role = _cmbRole.SelectedIndex == 0 ? UserRole.Administrator : UserRole.Staff;
+            // Backstop for the disabled combo above: your own role can never
+            // change through this dialog, no matter what the control reports.
+            if (_isOwnAccount && _originalRole.HasValue)
+                role = _originalRole.Value;
 
             if (string.IsNullOrWhiteSpace(fullName))
             {

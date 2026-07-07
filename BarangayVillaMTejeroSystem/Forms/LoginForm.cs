@@ -280,6 +280,8 @@ namespace BarangayVillaMTejeroSystem.Forms
             }
 
             _lblError.Text = "";
+            TransactionLogService.Log(LogType.Authentication, "Signed in", account.FullName, account.UserId,
+                $"{account.RoleLabel} session started");
             var dashboard = new DashboardForm(account);
             dashboard.FormClosed += (_, _) =>
             {

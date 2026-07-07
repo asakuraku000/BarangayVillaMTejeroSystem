@@ -1,163 +1,289 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using BarangayVillaMTejeroSystem.Data;
 using BarangayVillaMTejeroSystem.Models;
+using Microsoft.Data.Sqlite;
 
 namespace BarangayVillaMTejeroSystem.Services
 {
     /// <summary>
-    /// Handles resident profile records for the barangay. As with
-    /// UserService, this phase keeps everything in-memory (seeded with
-    /// sample residents) so the module is fully demonstrable before the
-    /// Microsoft Access-backed persistence layer is wired in. Swap the
-    /// in-memory list for OleDb queries against the .accdb "Residents"
-    /// table when that phase begins, keeping the same method signatures.
+    /// Handles resident profile records for the barangay. Backed by the
+    /// SQLite database created by DatabaseHelper (Data\barangay.db).
+    /// Public method signatures are unchanged from the earlier in-memory
+    /// version, so ResidentManagementControl, ResidentFormDialog,
+    /// ResidentProfileDialog, and DashboardForm needed no changes.
     /// </summary>
     public static class ResidentService
     {
-        private static readonly List<Resident> _residents = new()
+        public static IReadOnlyList<Resident> GetAllResidents()
         {
-            new Resident
-            {
-                ResidentId = 1, LastName = "Dela Cruz", FirstName = "Juan", MiddleName = "Santos",
-                BirthDate = new DateTime(1978, 3, 14), Gender = Gender.Male, CivilStatus = CivilStatus.Married,
-                Purok = "Purok 1", ContactNo = "0917-100-0001", Occupation = "Barangay Captain",
-                HouseholdMembers = new List<string> { "Maria Dela Cruz (spouse)", "Jenny Dela Cruz (daughter)" },
-                DateRegistered = new DateTime(2019, 1, 15)
-            },
-            new Resident
-            {
-                ResidentId = 2, LastName = "Santos", FirstName = "Maria", MiddleName = "Reyes",
-                BirthDate = new DateTime(1985, 7, 22), Gender = Gender.Female, CivilStatus = CivilStatus.Married,
-                Purok = "Purok 2", ContactNo = "0917-100-0002", Occupation = "Teacher",
-                HouseholdMembers = new List<string> { "Carlos Santos (spouse)" },
-                DateRegistered = new DateTime(2019, 2, 3)
-            },
-            new Resident
-            {
-                ResidentId = 3, LastName = "Reyes", FirstName = "Pedro", MiddleName = "Garcia",
-                BirthDate = new DateTime(1960, 11, 5), Gender = Gender.Male, CivilStatus = CivilStatus.Widowed,
-                Purok = "Purok 3", ContactNo = "0917-100-0003", Occupation = "Retired",
-                DateRegistered = new DateTime(2019, 2, 20)
-            },
-            new Resident
-            {
-                ResidentId = 4, LastName = "Garcia", FirstName = "Ana", MiddleName = "Lopez",
-                BirthDate = new DateTime(2001, 4, 9), Gender = Gender.Female, CivilStatus = CivilStatus.Single,
-                Purok = "Purok 1", ContactNo = "0917-100-0004", Occupation = "Student",
-                HouseholdMembers = new List<string> { "Juan Dela Cruz (father)", "Maria Dela Cruz (mother)" },
-                DateRegistered = new DateTime(2020, 6, 11)
-            },
-            new Resident
-            {
-                ResidentId = 5, LastName = "Lopez", FirstName = "Jose", MiddleName = "Fernandez", Suffix = "Jr.",
-                BirthDate = new DateTime(1995, 9, 30), Gender = Gender.Male, CivilStatus = CivilStatus.Single,
-                Purok = "Purok 4", ContactNo = "0917-100-0005", Occupation = "Driver",
-                DateRegistered = new DateTime(2020, 9, 2)
-            },
-            new Resident
-            {
-                ResidentId = 6, LastName = "Fernandez", FirstName = "Rosa", MiddleName = "Villanueva",
-                BirthDate = new DateTime(1954, 1, 18), Gender = Gender.Female, CivilStatus = CivilStatus.Widowed,
-                Purok = "Purok 2", ContactNo = "0917-100-0006", Occupation = "None",
-                DateRegistered = new DateTime(2019, 4, 8)
-            },
-            new Resident
-            {
-                ResidentId = 7, LastName = "Villanueva", FirstName = "Mark", MiddleName = "Torres",
-                BirthDate = new DateTime(1990, 12, 2), Gender = Gender.Male, CivilStatus = CivilStatus.Married,
-                Purok = "Purok 5", ContactNo = "0917-100-0007", Occupation = "Vendor",
-                HouseholdMembers = new List<string> { "Liza Villanueva (spouse)", "Miguel Villanueva (son)" },
-                DateRegistered = new DateTime(2021, 1, 25)
-            },
-            new Resident
-            {
-                ResidentId = 8, LastName = "Torres", FirstName = "Liza", MiddleName = "Bautista",
-                BirthDate = new DateTime(1988, 5, 16), Gender = Gender.Female, CivilStatus = CivilStatus.Separated,
-                Purok = "Purok 3", ContactNo = "0917-100-0008", Occupation = "Sari-sari Store Owner",
-                HouseholdMembers = new List<string> { "Ramon Torres (son)" },
-                DateRegistered = new DateTime(2021, 3, 30)
-            },
-            new Resident
-            {
-                ResidentId = 9, LastName = "Bautista", FirstName = "Ramon", MiddleName = "Cruz",
-                BirthDate = new DateTime(2015, 8, 21), Gender = Gender.Male, CivilStatus = CivilStatus.Single,
-                Purok = "Purok 6", ContactNo = "0917-100-0009", Occupation = "None",
-                DateRegistered = new DateTime(2022, 2, 14)
-            },
-            new Resident
-            {
-                ResidentId = 10, LastName = "Cruz", FirstName = "Ella", MiddleName = "Marquez",
-                BirthDate = new DateTime(1999, 10, 27), Gender = Gender.Female, CivilStatus = CivilStatus.Single,
-                Purok = "Purok 7", ContactNo = "0917-100-0010", Occupation = "Call Center Agent",
-                DateRegistered = new DateTime(2022, 7, 19)
-            },
-        };
+            var residents = new List<Resident>();
 
-        public static IReadOnlyList<Resident> GetAllResidents() =>
-            _residents.OrderBy(r => r.LastName).ThenBy(r => r.FirstName).ToList().AsReadOnly();
+            using var connection = DatabaseHelper.CreateOpenConnection();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "SELECT * FROM Residents ORDER BY LastName, FirstName;";
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                    residents.Add(ReadResident(reader));
+            }
 
-        public static Resident GetById(int residentId) =>
-            _residents.FirstOrDefault(r => r.ResidentId == residentId);
+            AttachHouseholdMembers(connection, residents);
+            return residents.AsReadOnly();
+        }
 
-        public static IReadOnlyList<string> GetPuroks() =>
-            _residents.Select(r => r.Purok)
-                .Where(p => !string.IsNullOrWhiteSpace(p))
-                .Distinct()
-                .OrderBy(p => p)
-                .ToList()
-                .AsReadOnly();
+        public static Resident GetById(int residentId)
+        {
+            using var connection = DatabaseHelper.CreateOpenConnection();
+            Resident resident = null;
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "SELECT * FROM Residents WHERE ResidentId = $id;";
+                cmd.Parameters.AddWithValue("$id", residentId);
+                using var reader = cmd.ExecuteReader();
+                if (reader.Read())
+                    resident = ReadResident(reader);
+            }
+
+            if (resident != null)
+                AttachHouseholdMembers(connection, new List<Resident> { resident });
+
+            return resident;
+        }
+
+        public static IReadOnlyList<string> GetPuroks()
+        {
+            var puroks = new List<string>();
+
+            using var connection = DatabaseHelper.CreateOpenConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                SELECT DISTINCT Purok FROM Residents
+                WHERE Purok IS NOT NULL AND TRIM(Purok) <> ''
+                ORDER BY Purok;";
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+                puroks.Add(reader.GetString(0));
+
+            return puroks.AsReadOnly();
+        }
 
         public static Resident AddResident(Resident resident)
         {
-            resident.ResidentId = _residents.Count == 0 ? 1 : _residents.Max(r => r.ResidentId) + 1;
             resident.IsActive = true;
             resident.DateRegistered = DateTime.Now;
-            _residents.Add(resident);
+
+            using var connection = DatabaseHelper.CreateOpenConnection();
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    INSERT INTO Residents
+                        (LastName, FirstName, MiddleName, Suffix, BirthDate, Gender, CivilStatus, Purok, ContactNo, Occupation, IsActive, Remarks, DateRegistered)
+                    VALUES
+                        ($lastName, $firstName, $middleName, $suffix, $birthDate, $gender, $civilStatus, $purok, $contactNo, $occupation, 1, $remarks, $registered);";
+                BindResidentFields(cmd, resident);
+                cmd.Parameters.AddWithValue("$registered", resident.DateRegistered.ToString("O"));
+                cmd.ExecuteNonQuery();
+            }
+
+            using (var idCmd = connection.CreateCommand())
+            {
+                idCmd.CommandText = "SELECT last_insert_rowid();";
+                resident.ResidentId = (int)(long)idCmd.ExecuteScalar();
+            }
+
+            ReplaceHouseholdMembers(connection, resident.ResidentId, resident.HouseholdMembers);
             return resident;
         }
 
         public static bool UpdateResident(Resident updated)
         {
-            var existing = GetById(updated.ResidentId);
-            if (existing == null) return false;
+            using var connection = DatabaseHelper.CreateOpenConnection();
 
-            existing.LastName = updated.LastName;
-            existing.FirstName = updated.FirstName;
-            existing.MiddleName = updated.MiddleName;
-            existing.Suffix = updated.Suffix;
-            existing.BirthDate = updated.BirthDate;
-            existing.Gender = updated.Gender;
-            existing.CivilStatus = updated.CivilStatus;
-            existing.Purok = updated.Purok;
-            existing.ContactNo = updated.ContactNo;
-            existing.Occupation = updated.Occupation;
-            existing.HouseholdMembers = updated.HouseholdMembers;
-            existing.Remarks = updated.Remarks;
+            int rows;
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    UPDATE Residents SET
+                        LastName = $lastName,
+                        FirstName = $firstName,
+                        MiddleName = $middleName,
+                        Suffix = $suffix,
+                        BirthDate = $birthDate,
+                        Gender = $gender,
+                        CivilStatus = $civilStatus,
+                        Purok = $purok,
+                        ContactNo = $contactNo,
+                        Occupation = $occupation,
+                        Remarks = $remarks
+                    WHERE ResidentId = $id;";
+                BindResidentFields(cmd, updated);
+                cmd.Parameters.AddWithValue("$id", updated.ResidentId);
+                rows = cmd.ExecuteNonQuery();
+            }
 
+            if (rows == 0) return false;
+
+            ReplaceHouseholdMembers(connection, updated.ResidentId, updated.HouseholdMembers);
             return true;
         }
 
         public static bool SetActive(int residentId, bool isActive, string remarks = null)
         {
-            var existing = GetById(residentId);
-            if (existing == null) return false;
-            existing.IsActive = isActive;
-            if (remarks != null) existing.Remarks = remarks;
-            return true;
+            using var connection = DatabaseHelper.CreateOpenConnection();
+            using var cmd = connection.CreateCommand();
+
+            if (remarks != null)
+            {
+                cmd.CommandText = "UPDATE Residents SET IsActive = $active, Remarks = $remarks WHERE ResidentId = $id;";
+                cmd.Parameters.AddWithValue("$remarks", remarks);
+            }
+            else
+            {
+                cmd.CommandText = "UPDATE Residents SET IsActive = $active WHERE ResidentId = $id;";
+            }
+            cmd.Parameters.AddWithValue("$active", isActive ? 1 : 0);
+            cmd.Parameters.AddWithValue("$id", residentId);
+
+            return cmd.ExecuteNonQuery() > 0;
         }
 
         public static bool DeleteResident(int residentId)
         {
-            var existing = GetById(residentId);
-            if (existing == null) return false;
-            return _residents.Remove(existing);
+            using var connection = DatabaseHelper.CreateOpenConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "DELETE FROM Residents WHERE ResidentId = $id;";
+            cmd.Parameters.AddWithValue("$id", residentId);
+            return cmd.ExecuteNonQuery() > 0;
         }
 
         // ----- Stats, for the Dashboard's stat cards -----
 
-        public static int TotalActiveResidents => _residents.Count(r => r.IsActive);
+        public static int TotalActiveResidents
+        {
+            get
+            {
+                using var connection = DatabaseHelper.CreateOpenConnection();
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = "SELECT COUNT(*) FROM Residents WHERE IsActive = 1;";
+                return Convert.ToInt32(cmd.ExecuteScalar());
+            }
+        }
 
-        public static int TotalSeniorCitizens => _residents.Count(r => r.IsActive && r.IsSeniorCitizen);
+        public static int TotalSeniorCitizens
+        {
+            get
+            {
+                // Age is computed in C# (Resident.Age), so pull active
+                // residents' birth dates and count client-side instead of
+                // duplicating the age math as SQL date arithmetic.
+                using var connection = DatabaseHelper.CreateOpenConnection();
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = "SELECT BirthDate FROM Residents WHERE IsActive = 1;";
+                using var reader = cmd.ExecuteReader();
+
+                int count = 0;
+                var today = DateTime.Today;
+                while (reader.Read())
+                {
+                    var birthDate = ParseDate(reader.GetString(0));
+                    int age = today.Year - birthDate.Year;
+                    if (birthDate.Date > today.AddYears(-age)) age--;
+                    if (age >= 60) count++;
+                }
+                return count;
+            }
+        }
+
+        // ----- Internal helpers -----
+
+        private static Resident ReadResident(SqliteDataReader reader)
+        {
+            return new Resident
+            {
+                ResidentId = reader.GetInt32(reader.GetOrdinal("ResidentId")),
+                LastName = reader.GetString(reader.GetOrdinal("LastName")),
+                FirstName = reader.GetString(reader.GetOrdinal("FirstName")),
+                MiddleName = reader.GetString(reader.GetOrdinal("MiddleName")),
+                Suffix = reader.GetString(reader.GetOrdinal("Suffix")),
+                BirthDate = ParseDate(reader.GetString(reader.GetOrdinal("BirthDate"))),
+                Gender = (Gender)reader.GetInt32(reader.GetOrdinal("Gender")),
+                CivilStatus = (CivilStatus)reader.GetInt32(reader.GetOrdinal("CivilStatus")),
+                Purok = reader.GetString(reader.GetOrdinal("Purok")),
+                ContactNo = reader.GetString(reader.GetOrdinal("ContactNo")),
+                Occupation = reader.GetString(reader.GetOrdinal("Occupation")),
+                IsActive = reader.GetInt32(reader.GetOrdinal("IsActive")) == 1,
+                Remarks = reader.GetString(reader.GetOrdinal("Remarks")),
+                DateRegistered = ParseDate(reader.GetString(reader.GetOrdinal("DateRegistered"))),
+                HouseholdMembers = new List<string>()
+            };
+        }
+
+        private static void AttachHouseholdMembers(SqliteConnection connection, List<Resident> residents)
+        {
+            if (residents.Count == 0) return;
+
+            var byId = residents.ToDictionary(r => r.ResidentId);
+
+            using var cmd = connection.CreateCommand();
+            if (residents.Count == 1)
+            {
+                cmd.CommandText = "SELECT ResidentId, MemberName FROM ResidentHouseholdMembers WHERE ResidentId = $id ORDER BY Id;";
+                cmd.Parameters.AddWithValue("$id", residents[0].ResidentId);
+            }
+            else
+            {
+                cmd.CommandText = "SELECT ResidentId, MemberName FROM ResidentHouseholdMembers ORDER BY ResidentId, Id;";
+            }
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                int residentId = reader.GetInt32(0);
+                if (byId.TryGetValue(residentId, out var resident))
+                    resident.HouseholdMembers.Add(reader.GetString(1));
+            }
+        }
+
+        private static void ReplaceHouseholdMembers(SqliteConnection connection, int residentId, List<string> members)
+        {
+            using (var del = connection.CreateCommand())
+            {
+                del.CommandText = "DELETE FROM ResidentHouseholdMembers WHERE ResidentId = $id;";
+                del.Parameters.AddWithValue("$id", residentId);
+                del.ExecuteNonQuery();
+            }
+
+            foreach (var member in members.Where(m => !string.IsNullOrWhiteSpace(m)))
+            {
+                using var insert = connection.CreateCommand();
+                insert.CommandText = "INSERT INTO ResidentHouseholdMembers (ResidentId, MemberName) VALUES ($id, $name);";
+                insert.Parameters.AddWithValue("$id", residentId);
+                insert.Parameters.AddWithValue("$name", member);
+                insert.ExecuteNonQuery();
+            }
+        }
+
+        private static void BindResidentFields(SqliteCommand cmd, Resident resident)
+        {
+            cmd.Parameters.AddWithValue("$lastName", resident.LastName ?? "");
+            cmd.Parameters.AddWithValue("$firstName", resident.FirstName ?? "");
+            cmd.Parameters.AddWithValue("$middleName", resident.MiddleName ?? "");
+            cmd.Parameters.AddWithValue("$suffix", resident.Suffix ?? "");
+            cmd.Parameters.AddWithValue("$birthDate", resident.BirthDate.ToString("O"));
+            cmd.Parameters.AddWithValue("$gender", (int)resident.Gender);
+            cmd.Parameters.AddWithValue("$civilStatus", (int)resident.CivilStatus);
+            cmd.Parameters.AddWithValue("$purok", resident.Purok ?? "");
+            cmd.Parameters.AddWithValue("$contactNo", resident.ContactNo ?? "");
+            cmd.Parameters.AddWithValue("$occupation", resident.Occupation ?? "");
+            cmd.Parameters.AddWithValue("$remarks", resident.Remarks ?? "");
+        }
+
+        private static DateTime ParseDate(string value) =>
+            DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
     }
 }

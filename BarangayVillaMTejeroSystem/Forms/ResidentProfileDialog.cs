@@ -125,7 +125,7 @@ namespace BarangayVillaMTejeroSystem.Forms
             scrollArea.Controls.Add(divider2);
             y += 16;
 
-            // ----- Document History card (placeholder — hook for the Documents module) -----
+            // ----- Document History card (real data from the Documents module) -----
             var lblHistoryTitle = new Label
             {
                 Text = "Document History",
@@ -137,33 +137,77 @@ namespace BarangayVillaMTejeroSystem.Forms
             scrollArea.Controls.Add(lblHistoryTitle);
             y += 30;
 
-            var historyCard = new RoundedPanel
+            var docs = Services.DocumentService.GetByResident(resident.ResidentId);
+            if (docs.Count == 0)
             {
-                Location = new Point(28, y),
-                Size = new Size(fieldWidth, 90),
-                BackColor = Color.FromArgb(250, 251, 252),
-                CornerRadius = 12,
-                BorderColor = BorderGray
-            };
-            historyCard.Controls.Add(new Label
+                var historyCard = new RoundedPanel
+                {
+                    Location = new Point(28, y),
+                    Size = new Size(fieldWidth, 70),
+                    BackColor = Color.FromArgb(250, 251, 252),
+                    CornerRadius = 12,
+                    BorderColor = BorderGray
+                };
+                historyCard.Controls.Add(new Label
+                {
+                    Text = "No documents issued yet.",
+                    Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                    ForeColor = MutedText,
+                    AutoSize = true,
+                    Location = new Point(16, 16)
+                });
+                scrollArea.Controls.Add(historyCard);
+                y += 70 + 20;
+            }
+            else
             {
-                Text = "No documents issued yet.",
-                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                ForeColor = MutedText,
-                AutoSize = true,
-                Location = new Point(16, 16)
-            });
-            historyCard.Controls.Add(new Label
-            {
-                Text = "This will list every Certificate of Residency, Indigency, Clearance,\netc. issued to this resident once the Barangay Documents module is connected.",
-                Font = new Font("Segoe UI", 8.5f),
-                ForeColor = MutedText,
-                AutoSize = false,
-                Size = new Size(fieldWidth - 32, 44),
-                Location = new Point(16, 38)
-            });
-            scrollArea.Controls.Add(historyCard);
-            y += 90 + 20;
+                int cardHeight = Math.Min(220, 26 + docs.Count * 38 + 10);
+                var historyCard = new RoundedPanel
+                {
+                    Location = new Point(28, y),
+                    Size = new Size(fieldWidth, cardHeight),
+                    BackColor = Color.FromArgb(250, 251, 252),
+                    CornerRadius = 12,
+                    BorderColor = BorderGray
+                };
+
+                int hy = 12;
+                foreach (var d in docs)
+                {
+                    historyCard.Controls.Add(new Label
+                    {
+                        Text = d.DocumentType.Label(),
+                        Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                        ForeColor = NavyDark,
+                        AutoSize = false,
+                        Size = new Size(fieldWidth - 130, 18),
+                        Location = new Point(16, hy)
+                    });
+                    historyCard.Controls.Add(new Label
+                    {
+                        Text = $"{d.ControlNo}  •  {d.DateRequested:MMMM d, yyyy}",
+                        Font = new Font("Segoe UI", 8f),
+                        ForeColor = MutedText,
+                        AutoSize = false,
+                        Size = new Size(fieldWidth - 130, 16),
+                        Location = new Point(16, hy + 17)
+                    });
+                    historyCard.Controls.Add(new Label
+                    {
+                        Text = d.Status.Label(),
+                        Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                        ForeColor = d.Status.StatusColor(),
+                        BackColor = d.Status.StatusBackColor(),
+                        AutoSize = true,
+                        Padding = new Padding(8, 2, 8, 2),
+                        Location = new Point(fieldWidth - 104, hy + 6)
+                    });
+                    hy += 38;
+                }
+
+                scrollArea.Controls.Add(historyCard);
+                y += cardHeight + 20;
+            }
 
             scrollArea.Controls.Add(new Panel { Location = new Point(0, y), Size = new Size(1, 1) });
 
