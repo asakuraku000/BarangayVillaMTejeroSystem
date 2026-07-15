@@ -15,7 +15,13 @@ namespace BarangayVillaMTejeroSystem.Models
         CertificateOfIndigency,
         BarangayClearanceEmployment,
         BarangayClearanceBusiness,
-        SchoolRequirement
+        SchoolRequirement,
+
+        // Added after the original five — appended at the end (not inserted
+        // in the middle) so the integer values already stored in the
+        // IssuedDocuments.DocumentType column for existing records keep
+        // pointing at the same document type.
+        CertificateOfOneness
     }
 
     /// <summary>
@@ -54,6 +60,16 @@ namespace BarangayVillaMTejeroSystem.Models
         public string OrNumber { get; set; } = string.Empty;
         public decimal Fee { get; set; }
 
+        /// <summary>Type of business (e.g. "Food Stand", "Sari-Sari Store") printed
+        /// on the Barangay Clearance for Business template's fee schedule. Only
+        /// meaningful for DocumentType.BarangayClearanceBusiness requests.</summary>
+        public string BusinessType { get; set; } = string.Empty;
+
+        /// <summary>Separate business tax amount printed under the "BUSINESS TAX"
+        /// line of the same template — distinct from the general Fee above (which
+        /// covers the barangay permit fee).</summary>
+        public decimal BusinessTax { get; set; }
+
         public DocumentStatus Status { get; set; }
         public string Remarks { get; set; } = string.Empty;
 
@@ -81,6 +97,7 @@ namespace BarangayVillaMTejeroSystem.Models
             DocumentType.BarangayClearanceEmployment => "Barangay Clearance — Employment",
             DocumentType.BarangayClearanceBusiness => "Barangay Clearance — Business",
             DocumentType.SchoolRequirement => "Clearance / Certificate — School Requirement",
+            DocumentType.CertificateOfOneness => "Certificate of Oneness",
             _ => type.ToString()
         };
 
@@ -91,6 +108,7 @@ namespace BarangayVillaMTejeroSystem.Models
             DocumentType.BarangayClearanceEmployment => "BARANGAY CLEARANCE",
             DocumentType.BarangayClearanceBusiness => "BARANGAY CLEARANCE",
             DocumentType.SchoolRequirement => "CERTIFICATE / CLEARANCE",
+            DocumentType.CertificateOfOneness => "CERTIFICATE OF ONENESS",
             _ => "BARANGAY DOCUMENT"
         };
 
@@ -127,7 +145,30 @@ namespace BarangayVillaMTejeroSystem.Models
                 "School ID / Enrollment form",
                 "Proof of Residency"
             },
+            DocumentType.CertificateOfOneness => new[]
+            {
+                "Valid ID (both names, if available)",
+                "Birth Certificate / PSA record",
+                "Any document showing the name variance"
+            },
             _ => new[] { "Valid ID" }
+        };
+
+        /// <summary>
+        /// File name of the official Word-format certificate this type is
+        /// based on, under the app's Templates folder (see
+        /// BarangayVillaMTejeroSystem.csproj). Returns null for types that
+        /// don't have a bundled official template on file.
+        /// </summary>
+        public static string TemplateFileName(this DocumentType type) => type switch
+        {
+            DocumentType.CertificateOfResidency => "CertificateOfResidency.docx",
+            DocumentType.CertificateOfIndigency => "CertificateOfIndigency.docx",
+            DocumentType.BarangayClearanceEmployment => "BarangayClearance.docx",
+            DocumentType.BarangayClearanceBusiness => "BarangayClearanceForBusiness.docx",
+            DocumentType.CertificateOfOneness => "CertificateOfOneness.docx",
+            DocumentType.SchoolRequirement => "SchoolRequirement.docx",
+            _ => null
         };
     }
 

@@ -83,21 +83,27 @@ namespace BarangayVillaMTejeroSystem.Controls
                 using var pen = new Pen(BorderGray);
                 e.Graphics.DrawRectangle(pen, 0, 0, searchBox.Width - 1, searchBox.Height - 1);
             };
+            // Fixed-size icon badge (instead of AutoSize) so its footprint is
+            // predictable and can never grow into the textbox that follows it.
             var lblSearchIcon = new Label
             {
                 Text = "🔎",
                 Font = new Font("Segoe UI Emoji", 9.5f),
-                AutoSize = true,
-                Location = new Point(10, 10)
+                ForeColor = MutedText,
+                AutoSize = false,
+                Size = new Size(22, 20),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Location = new Point(8, 9)
             };
             searchBox.Controls.Add(lblSearchIcon);
             _txtSearch = new TextBox
             {
                 BorderStyle = BorderStyle.None,
                 Font = new Font("Segoe UI", 9.5f),
-                Location = new Point(34, 9),
-                Width = 216
+                Location = new Point(36, 9),
+                Width = 214
             };
+            _txtSearch.PlaceholderText = "Search by username or full name...";
             _txtSearch.TextChanged += (_, _) => RefreshGrid();
             searchBox.Controls.Add(_txtSearch);
             toolbar.Controls.Add(searchBox);
@@ -107,7 +113,7 @@ namespace BarangayVillaMTejeroSystem.Controls
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = new Font("Segoe UI", 9.5f),
                 Location = new Point(272, 8),
-                Width = 170,
+                Size = new Size(170, 38),
                 FlatStyle = FlatStyle.Flat
             };
             _cmbRoleFilter.Items.Add("All Roles");
@@ -115,6 +121,7 @@ namespace BarangayVillaMTejeroSystem.Controls
             _cmbRoleFilter.Items.Add("Staff");
             _cmbRoleFilter.SelectedIndex = 0;
             _cmbRoleFilter.SelectedIndexChanged += (_, _) => RefreshGrid();
+            ComboBoxStyler.MakeTaller(_cmbRoleFilter, 34, NavyDark);
             toolbar.Controls.Add(_cmbRoleFilter);
 
             _lblCount = new Label

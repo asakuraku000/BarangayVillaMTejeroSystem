@@ -276,8 +276,10 @@ namespace BarangayVillaMTejeroSystem.Forms
                     ? new UserManagementControl(_user)
                     : BuildPlaceholderPanel("👤", "User Management",
                         "This module is only available to Administrator accounts."),
-                "backup" => BuildPlaceholderPanel("💾", "Backup && Restore",
-                    "Protect barangay records with manual backup and restore tools.\nThis module will be available in the next development phase."),
+                "backup" => _user.Role == UserRole.Administrator
+                    ? new BackupRestoreControl(_user)
+                    : BuildPlaceholderPanel("💾", "Backup && Restore",
+                        "This module is only available to Administrator accounts."),
                 _ => BuildDashboardPanel()
             };
 

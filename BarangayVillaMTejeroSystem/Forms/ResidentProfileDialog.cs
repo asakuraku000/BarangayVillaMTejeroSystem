@@ -110,7 +110,11 @@ namespace BarangayVillaMTejeroSystem.Forms
 
             // ----- Profile fields -----
             AddRow(scrollArea, "Age / Gender", $"{resident.Age} / {resident.GenderLabel}", ref y, fieldWidth);
+            if (!string.IsNullOrWhiteSpace(resident.AliasName))
+                AddRow(scrollArea, "Also Known As", resident.AliasName, ref y, fieldWidth);
             AddRow(scrollArea, "Birth Date", resident.BirthDate.ToString("MMMM d, yyyy"), ref y, fieldWidth);
+            if (!string.IsNullOrWhiteSpace(resident.Birthplace))
+                AddRow(scrollArea, "Place of Birth", resident.Birthplace, ref y, fieldWidth);
             AddRow(scrollArea, "Civil Status", resident.CivilStatusLabel, ref y, fieldWidth);
             AddRow(scrollArea, "Purok / Address", resident.Purok, ref y, fieldWidth);
             AddRow(scrollArea, "Contact No.", string.IsNullOrWhiteSpace(resident.ContactNo) ? "—" : resident.ContactNo, ref y, fieldWidth);

@@ -34,7 +34,19 @@ namespace BarangayVillaMTejeroSystem.Models
         public string MiddleName { get; set; } = string.Empty;
         public string Suffix { get; set; } = string.Empty; // Jr., Sr., III, etc. — optional, part of full name
 
+        /// <summary>
+        /// Optional "also known as" / maiden / previous name on record. Used by
+        /// the Certificate of Oneness, which certifies that this alias and the
+        /// resident's current legal name (FullName) refer to one and the same person.
+        /// </summary>
+        public string AliasName { get; set; } = string.Empty;
+
         public DateTime BirthDate { get; set; }
+
+        /// <summary>Place of birth, as printed on the BIRTHPLACE line of the
+        /// Barangay Clearance templates (e.g. "Iligan City").</summary>
+        public string Birthplace { get; set; } = string.Empty;
+
         public Gender Gender { get; set; }
         public CivilStatus CivilStatus { get; set; }
 
@@ -79,6 +91,13 @@ namespace BarangayVillaMTejeroSystem.Models
         public bool IsSeniorCitizen => Age >= 60;
 
         public string GenderLabel => Gender == Gender.Male ? "Male" : "Female";
+
+        // ----- Pronoun helpers, used to fill the [HE/SHE] / [HIM/HER] / [HIS/HER]
+        // tokens in the certificate templates so the correct pronoun is printed
+        // automatically instead of leaving a manual "he/she" for staff to circle. -----
+        public string PronounSubject => Gender == Gender.Male ? "he" : "she";
+        public string PronounObject => Gender == Gender.Male ? "him" : "her";
+        public string PronounPossessive => Gender == Gender.Male ? "his" : "her";
 
         public string CivilStatusLabel => CivilStatus.ToString();
 

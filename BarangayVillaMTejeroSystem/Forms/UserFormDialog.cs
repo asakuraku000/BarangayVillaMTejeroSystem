@@ -238,9 +238,9 @@ namespace BarangayVillaMTejeroSystem.Forms
                 Text = "CANCEL",
                 Size = new Size(174, 42),
                 Location = new Point(28, 16),
-                NormalColor = Color.FromArgb(240, 242, 245),
-                HoverColor = Color.FromArgb(228, 231, 236),
-                ForeColor = NavyDark,
+                NormalColor = Color.FromArgb(200, 29, 37),
+                HoverColor = Color.FromArgb(200, 29, 37),
+                ForeColor = Color.White,
                 DialogResult = DialogResult.Cancel
             };
             footer.Controls.Add(btnCancel);

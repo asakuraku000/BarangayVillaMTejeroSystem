@@ -12,7 +12,7 @@ namespace BarangayVillaMTejeroSystem.Forms
     {
         private TextBox _txtUsername;
         private TextBox _txtPassword;
-        private LinkLabel _lnkTogglePassword;
+        private EyeToggleButton _eyeToggle;
         private Label _lblError;
         private FlatButton _btnLogin;
 
@@ -192,27 +192,25 @@ namespace BarangayVillaMTejeroSystem.Forms
                 BorderStyle = BorderStyle.None,
                 Font = new Font("Segoe UI", 10.5f),
                 Location = new Point(10, 8),
-                Width = 276,
+                Width = 252,
                 UseSystemPasswordChar = true,
                 BackColor = Color.FromArgb(247, 248, 250)
             };
             passBox.Controls.Add(_txtPassword);
-            card.Controls.Add(passBox);
 
-            _lnkTogglePassword = new LinkLabel
+            // Eye / eye-slash toggle, docked inside the password field itself.
+            _eyeToggle = new EyeToggleButton
             {
-                Text = "Show",
-                Font = new Font("Segoe UI", 8.5f),
-                AutoSize = true,
-                Location = new Point(32, 238),
-                LinkColor = Color.FromArgb(27, 90, 130)
+                Size = new Size(18, 18),
+                Location = new Point(passBox.Width - 26, 9),
+                PasswordVisible = false
             };
-            _lnkTogglePassword.Click += (_, _) =>
+            _eyeToggle.Click += (_, _) =>
             {
-                _txtPassword.UseSystemPasswordChar = !_txtPassword.UseSystemPasswordChar;
-                _lnkTogglePassword.Text = _txtPassword.UseSystemPasswordChar ? "Show" : "Hide";
+                _txtPassword.UseSystemPasswordChar = !_eyeToggle.PasswordVisible;
             };
-            card.Controls.Add(_lnkTogglePassword);
+            passBox.Controls.Add(_eyeToggle);
+            card.Controls.Add(passBox);
 
             _lblError = new Label
             {
@@ -221,7 +219,7 @@ namespace BarangayVillaMTejeroSystem.Forms
                 ForeColor = Color.FromArgb(200, 29, 37),
                 AutoSize = false,
                 Size = new Size(296, 20),
-                Location = new Point(32, 262),
+                Location = new Point(32, 240),
                 TextAlign = ContentAlignment.MiddleLeft
             };
             card.Controls.Add(_lblError);
@@ -230,7 +228,7 @@ namespace BarangayVillaMTejeroSystem.Forms
             {
                 Text = "LOG IN",
                 Size = new Size(296, 44),
-                Location = new Point(32, 292)
+                Location = new Point(32, 270)
             };
             _btnLogin.Click += BtnLogin_Click;
             card.Controls.Add(_btnLogin);
@@ -242,7 +240,7 @@ namespace BarangayVillaMTejeroSystem.Forms
                 ForeColor = Color.FromArgb(170, 178, 190),
                 AutoSize = false,
                 Size = new Size(296, 36),
-                Location = new Point(32, 352),
+                Location = new Point(32, 328),
                 TextAlign = ContentAlignment.TopLeft
             };
             card.Controls.Add(lblHint);

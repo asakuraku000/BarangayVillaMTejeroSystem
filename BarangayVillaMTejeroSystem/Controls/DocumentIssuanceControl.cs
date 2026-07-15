@@ -41,14 +41,23 @@ namespace BarangayVillaMTejeroSystem.Controls
         private readonly string _captainName;
 
         // ----- Issuance form controls -----
-        private ComboBox _cmbResident;
+        private TextBox _txtResidentSearch;
+        private ListBox _suggestionBox;
+        private bool _suppressSuggest;
+        private IReadOnlyList<Resident> _allResidents;
         private Panel _residentSummary;
         private ComboBox _cmbDocType;
+        private LinkLabel _lnkViewTemplate;
         private TextBox _txtPurpose;
         private CheckBox _chkResidency;
         private CheckedListBox _clbRequirements;
         private TextBox _txtOrNo;
         private TextBox _txtFee;
+        private Panel _businessFieldsPanel;
+        private TextBox _txtBusinessType;
+        private TextBox _txtBusinessTax;
+        private Panel _lowerFieldsPanel;
+        private int _businessFieldsStartY;
         private RadioButton _rdoPending;
         private RadioButton _rdoApproved;
         private RadioButton _rdoRejected;
@@ -64,7 +73,6 @@ namespace BarangayVillaMTejeroSystem.Controls
         private TextBox _txtSearch;
         private ComboBox _cmbTypeFilter;
         private ComboBox _cmbStatusFilter;
-        private Label _lblHistoryCount;
 
         public DocumentIssuanceControl(UserAccount currentUser)
         {
@@ -117,13 +125,21 @@ namespace BarangayVillaMTejeroSystem.Controls
             {
                 Dock = DockStyle.Fill,
                 AutoScroll = true,
-                BackColor = Color.White,
-                Padding = new Padding(22, 18, 22, 18)
+                BackColor = Color.White
             };
             card.Controls.Add(scroll);
 
+            const int padLeft = 24, padTop = 20, padBottom = 20;
             int y = 0;
             int w = 410;
+
+            var content = new Panel
+            {
+                Location = new Point(padLeft, padTop),
+                Width = w,
+                BackColor = Color.Transparent
+            };
+            scroll.Controls.Add(content);
 
             _lblFormTitle = new Label
             {
@@ -133,7 +149,7 @@ namespace BarangayVillaMTejeroSystem.Controls
                 AutoSize = true,
                 Location = new Point(0, y)
             };
-            scroll.Controls.Add(_lblFormTitle);
+            content.Controls.Add(_lblFormTitle);
             y += 30;
 
             _lblControlNo = new Label
@@ -144,31 +160,63 @@ namespace BarangayVillaMTejeroSystem.Controls
                 AutoSize = true,
                 Location = new Point(0, y)
             };
-            scroll.Controls.Add(_lblControlNo);
+            content.Controls.Add(_lblControlNo);
             y += 22;
 
-            // ----- Resident selector -----
-            scroll.Controls.Add(new FieldLabel("Resident", 0, y));
-            _cmbResident = new ComboBox
+            // ----- Resident auto-suggest -----
+            content.Controls.Add(new FieldLabel("Resident", 0, y));
+            var residentSearchBox = new Panel
             {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Font = new Font("Segoe UI", 9.5f),
                 Location = new Point(0, y + 16),
-                Width = w,
-                FlatStyle = FlatStyle.Flat
+                Size = new Size(w, 36),
+                BackColor = Color.White
             };
-            // Avoid mixing a placeholder string with Resident objects under a
-            // DisplayMember (which would throw when reflecting on the string).
-            _cmbResident.Format += (s, e) =>
+            residentSearchBox.Paint += (s, e) =>
             {
-                e.Value = e.Value is Resident r ? r.FullName : (e.Value?.ToString() ?? "");
+                using var pen = new Pen(BorderGray);
+                e.Graphics.DrawRectangle(pen, 0, 0, residentSearchBox.Width - 1, residentSearchBox.Height - 1);
             };
-            var residents = Services.ResidentService.GetAllResidents();
-            _cmbResident.Items.Add("— Select resident —");
-            foreach (var r in residents) _cmbResident.Items.Add(r);
-            _cmbResident.SelectedIndex = 0;
-            _cmbResident.SelectedIndexChanged += (_, _) => OnResidentSelected();
-            scroll.Controls.Add(_cmbResident);
+            var lblResidentSearchIcon = new Label
+            {
+                Text = "🔎",
+                Font = new Font("Segoe UI Emoji", 9.5f),
+                ForeColor = MutedText,
+                AutoSize = false,
+                Size = new Size(22, 20),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Location = new Point(8, 8)
+            };
+            residentSearchBox.Controls.Add(lblResidentSearchIcon);
+            _txtResidentSearch = new TextBox
+            {
+                BorderStyle = BorderStyle.None,
+                Font = new Font("Segoe UI", 9.5f),
+                Location = new Point(36, 8),
+                Width = residentSearchBox.Width - 36 - 10
+            };
+            _txtResidentSearch.PlaceholderText = "Type a name to search (e.g. \"Juan\")...";
+            _txtResidentSearch.TextChanged += (_, _) => ShowSuggestions();
+            _txtResidentSearch.KeyDown += TxtResidentSearch_KeyDown;
+            // Delay the hide so a click on the suggestion list can register first.
+            _txtResidentSearch.Leave += (_, _) => BeginInvoke(new Action(HideSuggestions));
+            residentSearchBox.Controls.Add(_txtResidentSearch);
+            content.Controls.Add(residentSearchBox);
+
+            _suggestionBox = new ListBox
+            {
+                Location = new Point(residentSearchBox.Left, residentSearchBox.Bottom + 2),
+                Width = w,
+                Visible = false,
+                BorderStyle = BorderStyle.FixedSingle,
+                Font = new Font("Segoe UI", 9.5f),
+                IntegralHeight = false,
+                DisplayMember = nameof(Resident.FullName)
+            };
+            _suggestionBox.MouseDown += SuggestionBox_MouseDown;
+            _suggestionBox.KeyDown += TxtResidentSearch_KeyDown;
+            content.Controls.Add(_suggestionBox);
+
+            _allResidents = Services.ResidentService.GetAllResidents();
             y += 16 + 40;
 
             // ----- Auto-populated summary -----
@@ -189,39 +237,63 @@ namespace BarangayVillaMTejeroSystem.Controls
                 Size = new Size(w - 24, 60),
                 Location = new Point(12, 12)
             });
-            scroll.Controls.Add(_residentSummary);
+            content.Controls.Add(_residentSummary);
             y += 96 + 14;
 
             // ----- Document type -----
-            scroll.Controls.Add(new FieldLabel("Document Type", 0, y));
+            content.Controls.Add(new FieldLabel("Document Type", 0, y));
+            var docTypeBox = new Panel
+            {
+                Location = new Point(0, y + 16),
+                Size = new Size(w, 38),
+                BackColor = Color.White
+            };
+            docTypeBox.Paint += (s, e) =>
+            {
+                using var pen = new Pen(BorderGray);
+                e.Graphics.DrawRectangle(pen, 0, 0, docTypeBox.Width - 1, docTypeBox.Height - 1);
+            };
             _cmbDocType = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = new Font("Segoe UI", 9.5f),
-                Location = new Point(0, y + 16),
-                Width = w,
+                Location = new Point(1, 1),
+                Width = w - 2,
                 FlatStyle = FlatStyle.Flat
             };
             foreach (DocumentType t in Enum.GetValues(typeof(DocumentType)))
                 _cmbDocType.Items.Add(t.Label());
             _cmbDocType.SelectedIndex = 0;
-            _cmbDocType.SelectedIndexChanged += (_, _) => PopulateRequirements();
-            scroll.Controls.Add(_cmbDocType);
-            y += 16 + 40;
+            _cmbDocType.SelectedIndexChanged += (_, _) => { PopulateRequirements(); RefreshTemplateLink(); RefreshBusinessFieldsVisibility(); };
+            ComboBoxStyler.MakeTaller(_cmbDocType, 34, NavyDark);
+            docTypeBox.Controls.Add(_cmbDocType);
+            content.Controls.Add(docTypeBox);
+
+            _lnkViewTemplate = new LinkLabel
+            {
+                Text = "View official format (.docx)",
+                Font = new Font("Segoe UI", 8.5f),
+                AutoSize = true,
+                Location = new Point(0, docTypeBox.Bottom + 6),
+                LinkColor = TealAccent
+            };
+            _lnkViewTemplate.LinkClicked += (_, _) => OpenSelectedDocTypeTemplate();
+            content.Controls.Add(_lnkViewTemplate);
+            y = _lnkViewTemplate.Bottom + 10;
 
             // ----- Purpose -----
-            scroll.Controls.Add(new FieldLabel("Purpose", 0, y));
+            content.Controls.Add(new FieldLabel("Purpose", 0, y));
             _txtPurpose = new TextBox
             {
                 Location = new Point(0, y + 16),
                 Width = w,
-                Height = 38,
+                Height = 60,
                 Multiline = true,
                 Font = new Font("Segoe UI", 9.5f),
                 BorderStyle = BorderStyle.FixedSingle
             };
-            scroll.Controls.Add(_txtPurpose);
-            y += 16 + 44;
+            content.Controls.Add(_txtPurpose);
+            y += 16 + 60 + 10;
 
             // ----- Verification section -----
             var verifyCard = new RoundedPanel
@@ -269,38 +341,89 @@ namespace BarangayVillaMTejeroSystem.Controls
                 CheckOnClick = true
             };
             verifyCard.Controls.Add(_clbRequirements);
-            scroll.Controls.Add(verifyCard);
+            content.Controls.Add(verifyCard);
             y += 196 + 14;
 
             // ----- Transaction details -----
-            scroll.Controls.Add(new FieldLabel("O.R. Number", 0, y));
+            content.Controls.Add(new FieldLabel("O.R. Number", 0, y));
             _txtOrNo = new TextBox
             {
                 Location = new Point(0, y + 16),
                 Width = w,
+                Height = 36,
                 Font = new Font("Segoe UI", 9.5f),
                 BorderStyle = BorderStyle.FixedSingle
             };
-            scroll.Controls.Add(_txtOrNo);
+            content.Controls.Add(_txtOrNo);
             y += 16 + 40;
 
-            scroll.Controls.Add(new FieldLabel("Fee (₱)", 0, y));
+            content.Controls.Add(new FieldLabel("Fee (₱)", 0, y));
             _txtFee = new TextBox
             {
                 Location = new Point(0, y + 16),
                 Width = w,
+                Height = 36,
                 Font = new Font("Segoe UI", 9.5f),
                 BorderStyle = BorderStyle.FixedSingle,
                 Text = "0.00"
             };
-            scroll.Controls.Add(_txtFee);
+            content.Controls.Add(_txtFee);
             y += 16 + 40;
 
+            // ----- Business type / tax (only shown for Barangay Clearance – Business) -----
+            // Editable so staff can enter the actual business ("Food Stand", "Sari-Sari
+            // Store", etc.) and its tax amount instead of a hard-coded sample on the
+            // printed clearance.
+            _businessFieldsPanel = new Panel
+            {
+                Location = new Point(0, y),
+                Width = w,
+                Height = 16 + 40 + 16 + 40,
+                BackColor = Color.Transparent
+            };
+            _businessFieldsPanel.Controls.Add(new FieldLabel("Type of Business", 0, 0));
+            _txtBusinessType = new TextBox
+            {
+                Location = new Point(0, 16),
+                Width = w,
+                Height = 36,
+                Font = new Font("Segoe UI", 9.5f),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            _businessFieldsPanel.Controls.Add(_txtBusinessType);
+
+            _businessFieldsPanel.Controls.Add(new FieldLabel("Business Tax (₱)", 0, 16 + 40));
+            _txtBusinessTax = new TextBox
+            {
+                Location = new Point(0, 16 + 40 + 16),
+                Width = w,
+                Height = 36,
+                Font = new Font("Segoe UI", 9.5f),
+                BorderStyle = BorderStyle.FixedSingle,
+                Text = "0.00"
+            };
+            _businessFieldsPanel.Controls.Add(_txtBusinessTax);
+
+            content.Controls.Add(_businessFieldsPanel);
+            _businessFieldsStartY = y;
+
+            // Everything below the (optional) business fields lives in its own panel so it
+            // can slide up and close the gap when that panel is hidden, instead of leaving
+            // a fixed blank space behind it.
+            int ly = 0;
+            _lowerFieldsPanel = new Panel
+            {
+                Location = new Point(0, y),
+                Width = w,
+                Height = 16 + 36 + 16 + 60 + 8 + 56,
+                BackColor = Color.Transparent
+            };
+
             // ----- Status -----
-            scroll.Controls.Add(new FieldLabel("Status", 0, y));
+            _lowerFieldsPanel.Controls.Add(new FieldLabel("Status", 0, ly));
             var statusFlow = new FlowLayoutPanel
             {
-                Location = new Point(0, y + 16),
+                Location = new Point(0, ly + 16),
                 Width = w,
                 Height = 30,
                 FlowDirection = FlowDirection.LeftToRight,
@@ -310,60 +433,66 @@ namespace BarangayVillaMTejeroSystem.Controls
             _rdoApproved = new RadioButton { Text = "Approved", Font = new Font("Segoe UI", 9.5f), ForeColor = NavyDark, Margin = new Padding(0, 0, 18, 0) };
             _rdoRejected = new RadioButton { Text = "Rejected", Font = new Font("Segoe UI", 9.5f), ForeColor = NavyDark };
             statusFlow.Controls.AddRange(new Control[] { _rdoPending, _rdoApproved, _rdoRejected });
-            scroll.Controls.Add(statusFlow);
-            y += 16 + 36;
+            _lowerFieldsPanel.Controls.Add(statusFlow);
+            ly += 16 + 36;
 
             // ----- Remarks -----
-            scroll.Controls.Add(new FieldLabel("Remarks / Reason", 0, y));
+            _lowerFieldsPanel.Controls.Add(new FieldLabel("Remarks / Reason", 0, ly));
             _txtRemarks = new TextBox
             {
-                Location = new Point(0, y + 16),
+                Location = new Point(0, ly + 16),
                 Width = w,
-                Height = 46,
+                Height = 60,
                 Multiline = true,
                 Font = new Font("Segoe UI", 9.5f),
                 BorderStyle = BorderStyle.FixedSingle
             };
-            scroll.Controls.Add(_txtRemarks);
-            y += 16 + 52;
+            _lowerFieldsPanel.Controls.Add(_txtRemarks);
+            ly += 16 + 60 + 8;
 
             // ----- Buttons -----
             var btnClear = new FlatButton
             {
                 Text = "CLEAR / NEW",
                 Size = new Size(120, 40),
-                Location = new Point(0, y),
-                NormalColor = Color.FromArgb(240, 242, 245),
-                HoverColor = Color.FromArgb(228, 231, 236),
-                ForeColor = NavyDark
+                Location = new Point(0, ly),
+                NormalColor = Color.FromArgb(200, 29, 37),
+                HoverColor = Color.FromArgb(200, 29, 37),
+                ForeColor = Color.White
             };
             btnClear.Click += (_, _) => ResetForm();
-            scroll.Controls.Add(btnClear);
+            _lowerFieldsPanel.Controls.Add(btnClear);
 
             var btnSave = new FlatButton
             {
                 Text = "SAVE",
                 Size = new Size(120, 40),
-                Location = new Point(130, y)
+                Location = new Point(130, ly)
             };
             btnSave.Click += (_, _) => SaveDocument();
-            scroll.Controls.Add(btnSave);
+            _lowerFieldsPanel.Controls.Add(btnSave);
 
             var btnPrint = new FlatButton
             {
                 Text = "PRINT",
                 Size = new Size(140, 40),
-                Location = new Point(260, y),
+                Location = new Point(260, ly),
                 NormalColor = TealAccent,
                 HoverColor = Color.FromArgb(22, 75, 110)
             };
             btnPrint.Click += (_, _) => PrintCurrent();
-            scroll.Controls.Add(btnPrint);
+            _lowerFieldsPanel.Controls.Add(btnPrint);
 
-            y += 56;
-            scroll.Controls.Add(new Panel { Location = new Point(0, y), Size = new Size(1, 1) });
+            ly += 56;
+            _lowerFieldsPanel.Height = ly;
+            content.Controls.Add(_lowerFieldsPanel);
+
+            y += _businessFieldsPanel.Height + 14 + _lowerFieldsPanel.Height;
+            content.Height = y + padBottom;
 
             PopulateRequirements();
+            RefreshTemplateLink();
+            RefreshBusinessFieldsVisibility();
             return card;
         }
 
@@ -389,7 +518,7 @@ namespace BarangayVillaMTejeroSystem.Controls
                 RowCount = 2,
                 BackColor = Color.White
             };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 76f));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 96f));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             card.Controls.Add(root);
 
@@ -406,16 +535,39 @@ namespace BarangayVillaMTejeroSystem.Controls
             };
             toolbar.Controls.Add(lblTitle);
 
-            _txtSearch = new TextBox
+            var searchBox = new Panel
             {
                 Location = new Point(18, 44),
-                Width = 200,
-                Font = new Font("Segoe UI", 9.5f),
-                BorderStyle = BorderStyle.FixedSingle
+                Size = new Size(200, 32),
+                BackColor = Color.White
             };
-            _txtSearch.PlaceholderText = "Search control no. / purpose...";
+            searchBox.Paint += (s, e) =>
+            {
+                using var pen = new Pen(BorderGray);
+                e.Graphics.DrawRectangle(pen, 0, 0, searchBox.Width - 1, searchBox.Height - 1);
+            };
+            var lblSearchIcon = new Label
+            {
+                Text = "🔎",
+                Font = new Font("Segoe UI Emoji", 9f),
+                ForeColor = MutedText,
+                AutoSize = false,
+                Size = new Size(20, 18),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Location = new Point(6, 7)
+            };
+            searchBox.Controls.Add(lblSearchIcon);
+            _txtSearch = new TextBox
+            {
+                BorderStyle = BorderStyle.None,
+                Font = new Font("Segoe UI", 9.5f),
+                Location = new Point(30, 7),
+                Width = searchBox.Width - 30 - 8
+            };
+            _txtSearch.PlaceholderText = "Search name, control no., purpose...";
             _txtSearch.TextChanged += (_, _) => RefreshGrid();
-            toolbar.Controls.Add(_txtSearch);
+            searchBox.Controls.Add(_txtSearch);
+            toolbar.Controls.Add(searchBox);
 
             _cmbTypeFilter = new ComboBox
             {
@@ -430,6 +582,7 @@ namespace BarangayVillaMTejeroSystem.Controls
                 _cmbTypeFilter.Items.Add(t.Label());
             _cmbTypeFilter.SelectedIndex = 0;
             _cmbTypeFilter.SelectedIndexChanged += (_, _) => RefreshGrid();
+            ComboBoxStyler.MakeTaller(_cmbTypeFilter, 30, NavyDark);
             toolbar.Controls.Add(_cmbTypeFilter);
 
             _cmbStatusFilter = new ComboBox
@@ -446,26 +599,17 @@ namespace BarangayVillaMTejeroSystem.Controls
             _cmbStatusFilter.Items.Add("Rejected");
             _cmbStatusFilter.SelectedIndex = 0;
             _cmbStatusFilter.SelectedIndexChanged += (_, _) => RefreshGrid();
+            ComboBoxStyler.MakeTaller(_cmbStatusFilter, 30, NavyDark);
             toolbar.Controls.Add(_cmbStatusFilter);
-
-            _lblHistoryCount = new Label
-            {
-                Text = "",
-                Font = new Font("Segoe UI", 8.5f),
-                ForeColor = MutedText,
-                AutoSize = true,
-                Location = new Point(580, 50)
-            };
-            toolbar.Controls.Add(_lblHistoryCount);
 
             var btnRefresh = new FlatButton
             {
                 Text = "REFRESH",
                 Size = new Size(110, 32),
                 Location = new Point(toolbar.Width - 130, 44),
-                NormalColor = Color.FromArgb(240, 242, 245),
-                HoverColor = Color.FromArgb(228, 231, 236),
-                ForeColor = NavyDark,
+                NormalColor = Color.FromArgb(200, 29, 37),
+                HoverColor = Color.FromArgb(200, 29, 37),
+                ForeColor = Color.White,
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold)
             };
             btnRefresh.Click += (_, _) => RefreshGrid();
@@ -564,10 +708,164 @@ namespace BarangayVillaMTejeroSystem.Controls
                 _clbRequirements.Items.Add(req, false);
         }
 
-        private void OnResidentSelected()
+        /// <summary>Shows/hides the "View official format" link depending on whether the selected type has a bundled reference template.</summary>
+        private void RefreshTemplateLink()
         {
-            _selectedResident = _cmbResident.SelectedItem as Resident;
+            bool hasTemplate = SelectedType.TemplateFileName() != null;
+            _lnkViewTemplate.Visible = hasTemplate;
+        }
+
+        /// <summary>
+        /// The Type of Business / Business Tax inputs only make sense for a
+        /// Barangay Clearance – Business request (they fill the fee-schedule
+        /// lines on that specific template), so they're hidden otherwise.
+        /// </summary>
+        private void RefreshBusinessFieldsVisibility()
+        {
+            _businessFieldsPanel.Visible = SelectedType == DocumentType.BarangayClearanceBusiness;
+            _lowerFieldsPanel.Location = new Point(
+                0,
+                _businessFieldsStartY + (_businessFieldsPanel.Visible ? _businessFieldsPanel.Height + 14 : 0));
+        }
+
+        /// <summary>
+        /// Opens the official Word-format certificate this document type is
+        /// based on (bundled under Templates\, copied next to the .exe at
+        /// build time) using whatever the user's PC has associated with
+        /// .docx — Word, LibreOffice, etc. Reference only; nothing here is
+        /// edited or overwritten.
+        /// </summary>
+        private void OpenSelectedDocTypeTemplate()
+        {
+            string fileName = SelectedType.TemplateFileName();
+            if (fileName == null) return;
+
+            string path = System.IO.Path.Combine(AppContext.BaseDirectory, "Templates", fileName);
+            if (!System.IO.File.Exists(path))
+            {
+                MessageBox.Show($"Template file not found:\n{path}", "Template Missing",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Couldn't open the template:\n{ex.Message}", "Cannot Open",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        /// <summary>
+        /// Picks the residents that match the typed query. Matching is done
+        /// case-insensitively against the full name, first name, last name and
+        /// alias, so a single letter like "J" returns every resident whose
+        /// name contains it (e.g. both "Juan" and "Jose").
+        /// </summary>
+        private bool ResidentMatches(Resident r, string query)
+        {
+            if (string.IsNullOrWhiteSpace(query)) return false;
+            return r.FullName.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || r.FirstName.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || r.LastName.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || (!string.IsNullOrWhiteSpace(r.AliasName) && r.AliasName.Contains(query, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Shows a popup suggestion list (right under the search box) filtered
+        /// to the residents matching what's currently typed. Hides itself when
+        /// there are no matches.
+        /// </summary>
+        private void ShowSuggestions()
+        {
+            if (_suppressSuggest) return;
+
+            string query = _txtResidentSearch.Text.Trim();
+            var matches = string.IsNullOrEmpty(query)
+                ? new List<Resident>()
+                : _allResidents.Where(r => ResidentMatches(r, query)).ToList();
+
+            if (matches.Count == 0)
+            {
+                HideSuggestions();
+                return;
+            }
+
+            _suggestionBox.BeginUpdate();
+            _suggestionBox.Items.Clear();
+            foreach (var r in matches) _suggestionBox.Items.Add(r);
+            _suggestionBox.EndUpdate();
+            _suggestionBox.SelectedIndex = 0;
+
+            int visibleCount = Math.Min(matches.Count, 6);
+            _suggestionBox.Height = visibleCount * _suggestionBox.ItemHeight + 4;
+            _suggestionBox.BringToFront();
+            _suggestionBox.Visible = true;
+        }
+
+        private void HideSuggestions()
+        {
+            _suggestionBox.Visible = false;
+        }
+
+        /// <summary>
+        /// Confirms the given resident as the selected one: fills the search box
+        /// with their full name and refreshes the auto-populated summary.
+        /// </summary>
+        private void SelectResident(Resident r)
+        {
+            if (r == null) return;
+            _suppressSuggest = true;
+            _selectedResident = r;
+            _txtResidentSearch.Text = r.FullName;
+            _txtResidentSearch.SelectionStart = _txtResidentSearch.Text.Length;
+            _suppressSuggest = false;
+            HideSuggestions();
             RenderResidentSummary();
+        }
+
+        private void SuggestionBox_MouseDown(object sender, MouseEventArgs e)
+        {
+            int idx = _suggestionBox.IndexFromPoint(e.Location);
+            if (idx >= 0 && idx < _suggestionBox.Items.Count)
+            {
+                _suggestionBox.SelectedIndex = idx;
+                SelectResident((Resident)_suggestionBox.Items[idx]);
+            }
+        }
+
+        private void TxtResidentSearch_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (!_suggestionBox.Visible || _suggestionBox.Items.Count == 0) return;
+
+            switch (e.KeyCode)
+            {
+                case Keys.Down:
+                    _suggestionBox.SelectedIndex = Math.Min(_suggestionBox.SelectedIndex + 1, _suggestionBox.Items.Count - 1);
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                    break;
+                case Keys.Up:
+                    _suggestionBox.SelectedIndex = Math.Max(_suggestionBox.SelectedIndex - 1, 0);
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                    break;
+                case Keys.Enter:
+                case Keys.Tab:
+                    if (_suggestionBox.SelectedIndex >= 0)
+                        SelectResident((Resident)_suggestionBox.Items[_suggestionBox.SelectedIndex]);
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                    break;
+                case Keys.Escape:
+                    HideSuggestions();
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                    break;
+            }
         }
 
         private void RenderResidentSummary()
@@ -598,7 +896,8 @@ namespace BarangayVillaMTejeroSystem.Controls
             });
             var details = $"{r.Age} / {r.GenderLabel}  •  {r.CivilStatusLabel}\n" +
                           $"Purok: {r.Purok}  •  Contact: {r.ContactNo}\n" +
-                          $"Occupation: {r.Occupation}";
+                          $"Occupation: {r.Occupation}" +
+                          (string.IsNullOrWhiteSpace(r.AliasName) ? "" : $"\nAlso known as: {r.AliasName}");
             _residentSummary.Controls.Add(new Label
             {
                 Text = details,
@@ -638,6 +937,10 @@ namespace BarangayVillaMTejeroSystem.Controls
             decimal fee = 0;
             decimal.TryParse(_txtFee.Text.Trim(), out fee);
             doc.Fee = fee;
+            doc.BusinessType = _txtBusinessType.Text.Trim();
+            decimal businessTax = 0;
+            decimal.TryParse(_txtBusinessTax.Text.Trim(), out businessTax);
+            doc.BusinessTax = businessTax;
             doc.Status = SelectedStatus;
             doc.Remarks = _txtRemarks.Text.Trim();
             doc.RequestedBy = _currentUser.UserId;
@@ -724,13 +1027,17 @@ namespace BarangayVillaMTejeroSystem.Controls
         {
             _activeDoc = null;
             _selectedResident = null;
-            _cmbResident.SelectedIndex = 0;
+            _txtResidentSearch.Clear();
+            HideSuggestions();
             _cmbDocType.SelectedIndex = 0;
             _txtPurpose.Clear();
             _chkResidency.Checked = false;
             PopulateRequirements();
             _txtOrNo.Clear();
             _txtFee.Text = "0.00";
+            _txtBusinessType.Clear();
+            _txtBusinessTax.Text = "0.00";
+            RefreshBusinessFieldsVisibility();
             _rdoPending.Checked = true;
             _txtRemarks.Clear();
             _lblFormTitle.Text = "New Document Request";
@@ -744,8 +1051,11 @@ namespace BarangayVillaMTejeroSystem.Controls
             _activeDoc = doc;
             _selectedResident = Services.ResidentService.GetById(doc.ResidentId);
 
-            _cmbResident.SelectedIndex = _cmbResident.Items.Cast<object>()
-                .ToList().FindIndex(i => i is Resident r && r.ResidentId == doc.ResidentId);
+            // Fill the search box with the resident's name (suppress the
+            // auto-suggest popup — the resident is already chosen).
+            _suppressSuggest = true;
+            _txtResidentSearch.Text = _selectedResident?.FullName ?? "";
+            _suppressSuggest = false;
             RenderResidentSummary();
 
             _cmbDocType.SelectedIndex = (int)doc.DocumentType;
@@ -759,6 +1069,9 @@ namespace BarangayVillaMTejeroSystem.Controls
             }
             _txtOrNo.Text = doc.OrNumber;
             _txtFee.Text = doc.Fee.ToString("F2");
+            _txtBusinessType.Text = doc.BusinessType;
+            _txtBusinessTax.Text = doc.BusinessTax.ToString("F2");
+            RefreshBusinessFieldsVisibility();
             _rdoPending.Checked = doc.Status == DocumentStatus.Pending;
             _rdoApproved.Checked = doc.Status == DocumentStatus.Approved;
             _rdoRejected.Checked = doc.Status == DocumentStatus.Rejected;
@@ -784,8 +1097,14 @@ namespace BarangayVillaMTejeroSystem.Controls
                 _ => null
             };
 
-            var docs = DocumentService.Search(search, type: typeFilter, status: statusFilter).ToList();
             var residentsById = Services.ResidentService.GetAllResidents().ToDictionary(r => r.ResidentId);
+
+            // Text search runs client-side (not in the SQL query) so it can match
+            // against the resident's name too — that name only exists in the
+            // Residents table, joined in here, not in IssuedDocuments itself.
+            var docs = DocumentService.Search(type: typeFilter, status: statusFilter)
+                .Where(d => MatchesSearch(d, search, residentsById))
+                .ToList();
 
             _grid.Rows.Clear();
             foreach (var d in docs)
@@ -804,12 +1123,27 @@ namespace BarangayVillaMTejeroSystem.Controls
                     "Print");
                 _grid.Rows[row].Tag = d.DocumentId;
             }
-
-            int total = DocumentService.TotalIssued;
-            _lblHistoryCount.Text = docs.Count == total
-                ? $"{total} document(s) total"
-                : $"Showing {docs.Count} of {total} document(s)";
         }
+
+        /// <summary>
+        /// True if the search box is empty, or its text is found in the document's
+        /// control no., purpose, type, status, or the requesting resident's name.
+        /// </summary>
+        private static bool MatchesSearch(BarangayDocument d, string search, Dictionary<int, Resident> residentsById)
+        {
+            if (string.IsNullOrWhiteSpace(search)) return true;
+
+            string residentName = residentsById.TryGetValue(d.ResidentId, out var r) ? r.FullName : "";
+
+            return Contains(d.ControlNo, search)
+                || Contains(d.Purpose, search)
+                || Contains(residentName, search)
+                || Contains(d.DocumentType.Label(), search)
+                || Contains(d.Status.Label(), search);
+        }
+
+        private static bool Contains(string haystack, string needle)
+            => !string.IsNullOrEmpty(haystack) && haystack.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
 
         private void Grid_CellPainting(object sender, DataGridViewCellPaintingEventArgs e)
         {

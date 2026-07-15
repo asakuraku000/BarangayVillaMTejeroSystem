@@ -94,16 +94,39 @@ namespace BarangayVillaMTejeroSystem.Controls
             });
 
             // Search
-            _txtSearch = new TextBox
+            var searchBox = new Panel
             {
                 Location = new Point(18, 64),
-                Width = 230,
+                Size = new Size(230, 36),
+                BackColor = Color.White
+            };
+            searchBox.Paint += (s, e) =>
+            {
+                using var pen = new Pen(BorderGray);
+                e.Graphics.DrawRectangle(pen, 0, 0, searchBox.Width - 1, searchBox.Height - 1);
+            };
+            var lblSearchIcon = new Label
+            {
+                Text = "🔎",
+                Font = new Font("Segoe UI Emoji", 9.5f),
+                ForeColor = MutedText,
+                AutoSize = false,
+                Size = new Size(22, 20),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Location = new Point(8, 8)
+            };
+            searchBox.Controls.Add(lblSearchIcon);
+            _txtSearch = new TextBox
+            {
+                BorderStyle = BorderStyle.None,
                 Font = new Font("Segoe UI", 9.5f),
-                BorderStyle = BorderStyle.FixedSingle
+                Location = new Point(36, 8),
+                Width = searchBox.Width - 36 - 10
             };
             _txtSearch.PlaceholderText = "Search action / actor / details...";
             _txtSearch.TextChanged += (_, _) => RefreshGrid();
-            filterCard.Controls.Add(_txtSearch);
+            searchBox.Controls.Add(_txtSearch);
+            filterCard.Controls.Add(searchBox);
 
             // Type filter
             _cmbTypeFilter = new ComboBox
@@ -119,6 +142,7 @@ namespace BarangayVillaMTejeroSystem.Controls
                 _cmbTypeFilter.Items.Add(t.Label());
             _cmbTypeFilter.SelectedIndex = 0;
             _cmbTypeFilter.SelectedIndexChanged += (_, _) => RefreshGrid();
+            ComboBoxStyler.MakeTaller(_cmbTypeFilter, 34, NavyDark);
             filterCard.Controls.Add(_cmbTypeFilter);
 
             // Date range toggle + pickers

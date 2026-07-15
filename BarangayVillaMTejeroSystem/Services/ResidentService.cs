@@ -82,9 +82,9 @@ namespace BarangayVillaMTejeroSystem.Services
             {
                 cmd.CommandText = @"
                     INSERT INTO Residents
-                        (LastName, FirstName, MiddleName, Suffix, BirthDate, Gender, CivilStatus, Purok, ContactNo, Occupation, IsActive, Remarks, DateRegistered)
+                        (LastName, FirstName, MiddleName, Suffix, AliasName, BirthDate, Birthplace, Gender, CivilStatus, Purok, ContactNo, Occupation, IsActive, Remarks, DateRegistered)
                     VALUES
-                        ($lastName, $firstName, $middleName, $suffix, $birthDate, $gender, $civilStatus, $purok, $contactNo, $occupation, 1, $remarks, $registered);";
+                        ($lastName, $firstName, $middleName, $suffix, $aliasName, $birthDate, $birthplace, $gender, $civilStatus, $purok, $contactNo, $occupation, 1, $remarks, $registered);";
                 BindResidentFields(cmd, resident);
                 cmd.Parameters.AddWithValue("$registered", resident.DateRegistered.ToString("O"));
                 cmd.ExecuteNonQuery();
@@ -113,7 +113,9 @@ namespace BarangayVillaMTejeroSystem.Services
                         FirstName = $firstName,
                         MiddleName = $middleName,
                         Suffix = $suffix,
+                        AliasName = $aliasName,
                         BirthDate = $birthDate,
+                        Birthplace = $birthplace,
                         Gender = $gender,
                         CivilStatus = $civilStatus,
                         Purok = $purok,
@@ -210,7 +212,9 @@ namespace BarangayVillaMTejeroSystem.Services
                 FirstName = reader.GetString(reader.GetOrdinal("FirstName")),
                 MiddleName = reader.GetString(reader.GetOrdinal("MiddleName")),
                 Suffix = reader.GetString(reader.GetOrdinal("Suffix")),
+                AliasName = reader.GetString(reader.GetOrdinal("AliasName")),
                 BirthDate = ParseDate(reader.GetString(reader.GetOrdinal("BirthDate"))),
+                Birthplace = reader.GetString(reader.GetOrdinal("Birthplace")),
                 Gender = (Gender)reader.GetInt32(reader.GetOrdinal("Gender")),
                 CivilStatus = (CivilStatus)reader.GetInt32(reader.GetOrdinal("CivilStatus")),
                 Purok = reader.GetString(reader.GetOrdinal("Purok")),
@@ -274,7 +278,9 @@ namespace BarangayVillaMTejeroSystem.Services
             cmd.Parameters.AddWithValue("$firstName", resident.FirstName ?? "");
             cmd.Parameters.AddWithValue("$middleName", resident.MiddleName ?? "");
             cmd.Parameters.AddWithValue("$suffix", resident.Suffix ?? "");
+            cmd.Parameters.AddWithValue("$aliasName", resident.AliasName ?? "");
             cmd.Parameters.AddWithValue("$birthDate", resident.BirthDate.ToString("O"));
+            cmd.Parameters.AddWithValue("$birthplace", resident.Birthplace ?? "");
             cmd.Parameters.AddWithValue("$gender", (int)resident.Gender);
             cmd.Parameters.AddWithValue("$civilStatus", (int)resident.CivilStatus);
             cmd.Parameters.AddWithValue("$purok", resident.Purok ?? "");

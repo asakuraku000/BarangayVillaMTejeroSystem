@@ -104,7 +104,7 @@ namespace BarangayVillaMTejeroSystem.Services
             using (var cmd = connection.CreateCommand())
             {
                 cmd.CommandText = @"
-                    SELECT COALESCE(MAX(CAST(SUBSTR(ControlNo, 10) AS INTEGER)), 0)
+                    SELECT COALESCE(MAX(CAST(SUBSTR(ControlNo, 11) AS INTEGER)), 0)
                     FROM IssuedDocuments
                     WHERE ControlNo LIKE $pattern;";
                 cmd.Parameters.AddWithValue("$pattern", $"BVMT-{year}-%");
@@ -142,9 +142,9 @@ namespace BarangayVillaMTejeroSystem.Services
             using var cmd = connection.CreateCommand();
             cmd.CommandText = @"
                 INSERT INTO IssuedDocuments
-                    (ControlNo, ResidentId, DocumentType, Purpose, ResidencyVerified, Requirements, OrNumber, Fee, Status, Remarks, RequestedBy, DateRequested, DateProcessed)
+                    (ControlNo, ResidentId, DocumentType, Purpose, ResidencyVerified, Requirements, OrNumber, Fee, BusinessType, BusinessTax, Status, Remarks, RequestedBy, DateRequested, DateProcessed)
                 VALUES
-                    ($controlNo, $residentId, $type, $purpose, $residency, $requirements, $orNo, $fee, $status, $remarks, $requestedBy, $dateRequested, $dateProcessed);";
+                    ($controlNo, $residentId, $type, $purpose, $residency, $requirements, $orNo, $fee, $businessType, $businessTax, $status, $remarks, $requestedBy, $dateRequested, $dateProcessed);";
             BindFields(cmd, doc);
             cmd.ExecuteNonQuery();
 
@@ -167,6 +167,8 @@ namespace BarangayVillaMTejeroSystem.Services
                     Requirements = $requirements,
                     OrNumber = $orNo,
                     Fee = $fee,
+                    BusinessType = $businessType,
+                    BusinessTax = $businessTax,
                     Status = $status,
                     Remarks = $remarks,
                     RequestedBy = $requestedBy,
@@ -188,6 +190,8 @@ namespace BarangayVillaMTejeroSystem.Services
             cmd.Parameters.AddWithValue("$requirements", string.Join("|", doc.Requirements));
             cmd.Parameters.AddWithValue("$orNo", doc.OrNumber ?? "");
             cmd.Parameters.AddWithValue("$fee", doc.Fee);
+            cmd.Parameters.AddWithValue("$businessType", doc.BusinessType ?? "");
+            cmd.Parameters.AddWithValue("$businessTax", doc.BusinessTax);
             cmd.Parameters.AddWithValue("$status", (int)doc.Status);
             cmd.Parameters.AddWithValue("$remarks", doc.Remarks ?? "");
             cmd.Parameters.AddWithValue("$requestedBy", doc.RequestedBy);
@@ -211,6 +215,8 @@ namespace BarangayVillaMTejeroSystem.Services
                     .Split('|', StringSplitOptions.RemoveEmptyEntries).ToList(),
                 OrNumber = reader.GetString(reader.GetOrdinal("OrNumber")),
                 Fee = reader.GetDecimal(reader.GetOrdinal("Fee")),
+                BusinessType = reader.GetString(reader.GetOrdinal("BusinessType")),
+                BusinessTax = reader.GetDecimal(reader.GetOrdinal("BusinessTax")),
                 Status = (DocumentStatus)reader.GetInt32(reader.GetOrdinal("Status")),
                 Remarks = reader.GetString(reader.GetOrdinal("Remarks")),
                 RequestedBy = reader.GetInt32(reader.GetOrdinal("RequestedBy")),

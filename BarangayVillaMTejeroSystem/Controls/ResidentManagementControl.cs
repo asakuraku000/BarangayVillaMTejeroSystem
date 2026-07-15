@@ -78,7 +78,7 @@ namespace BarangayVillaMTejeroSystem.Controls
             var searchBox = new Panel
             {
                 Location = new Point(0, 8),
-                Size = new Size(220, 38),
+                Size = new Size(250, 38),
                 BackColor = Color.White
             };
             searchBox.Paint += (s, e) =>
@@ -86,21 +86,27 @@ namespace BarangayVillaMTejeroSystem.Controls
                 using var pen = new Pen(BorderGray);
                 e.Graphics.DrawRectangle(pen, 0, 0, searchBox.Width - 1, searchBox.Height - 1);
             };
+            // Fixed-size icon badge (instead of AutoSize) so its footprint is
+            // predictable and can never grow into the textbox that follows it.
             var lblSearchIcon = new Label
             {
                 Text = "🔎",
                 Font = new Font("Segoe UI Emoji", 9.5f),
-                AutoSize = true,
-                Location = new Point(10, 10)
+                ForeColor = MutedText,
+                AutoSize = false,
+                Size = new Size(22, 20),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Location = new Point(8, 9)
             };
             searchBox.Controls.Add(lblSearchIcon);
             _txtSearch = new TextBox
             {
                 BorderStyle = BorderStyle.None,
                 Font = new Font("Segoe UI", 9.5f),
-                Location = new Point(34, 9),
-                Width = 176
+                Location = new Point(36, 9),
+                Width = 204
             };
+            _txtSearch.PlaceholderText = "Search by name, purok, or contact no...";
             _txtSearch.TextChanged += (_, _) => RefreshGrid();
             searchBox.Controls.Add(_txtSearch);
             toolbar.Controls.Add(searchBox);
@@ -109,8 +115,8 @@ namespace BarangayVillaMTejeroSystem.Controls
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = new Font("Segoe UI", 9.5f),
-                Location = new Point(232, 8),
-                Width = 150,
+                Location = new Point(262, 8),
+                Size = new Size(150, 38),
                 FlatStyle = FlatStyle.Flat
             };
             _cmbPurokFilter.Items.Add("All Puroks");
@@ -118,14 +124,15 @@ namespace BarangayVillaMTejeroSystem.Controls
                 _cmbPurokFilter.Items.Add(purok);
             _cmbPurokFilter.SelectedIndex = 0;
             _cmbPurokFilter.SelectedIndexChanged += (_, _) => RefreshGrid();
+            ComboBoxStyler.MakeTaller(_cmbPurokFilter, 34, NavyDark);
             toolbar.Controls.Add(_cmbPurokFilter);
 
             _cmbStatusFilter = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = new Font("Segoe UI", 9.5f),
-                Location = new Point(394, 8),
-                Width = 140,
+                Location = new Point(424, 8),
+                Size = new Size(140, 38),
                 FlatStyle = FlatStyle.Flat
             };
             _cmbStatusFilter.Items.Add("All Statuses");
@@ -133,6 +140,7 @@ namespace BarangayVillaMTejeroSystem.Controls
             _cmbStatusFilter.Items.Add("Inactive");
             _cmbStatusFilter.SelectedIndex = 0;
             _cmbStatusFilter.SelectedIndexChanged += (_, _) => RefreshGrid();
+            ComboBoxStyler.MakeTaller(_cmbStatusFilter, 34, NavyDark);
             toolbar.Controls.Add(_cmbStatusFilter);
 
             _lblCount = new Label
@@ -141,7 +149,7 @@ namespace BarangayVillaMTejeroSystem.Controls
                 Font = new Font("Segoe UI", 8.5f),
                 ForeColor = MutedText,
                 AutoSize = true,
-                Location = new Point(546, 18)
+                Location = new Point(576, 18)
             };
             toolbar.Controls.Add(_lblCount);
 
@@ -585,9 +593,9 @@ namespace BarangayVillaMTejeroSystem.Controls
                     Text = "CANCEL",
                     Size = new Size(160, 38),
                     Location = new Point(22, 164),
-                    NormalColor = Color.FromArgb(240, 242, 245),
-                    HoverColor = Color.FromArgb(228, 231, 236),
-                    ForeColor = NavyDark,
+                    NormalColor = Color.FromArgb(200, 29, 37),
+                    HoverColor = Color.FromArgb(200, 29, 37),
+                    ForeColor = Color.White,
                     DialogResult = DialogResult.Cancel
                 };
                 Controls.Add(btnCancel);

@@ -67,7 +67,9 @@ namespace BarangayVillaMTejeroSystem.Data
                         FirstName       TEXT NOT NULL,
                         MiddleName      TEXT NOT NULL DEFAULT '',
                         Suffix          TEXT NOT NULL DEFAULT '',
+                        AliasName       TEXT NOT NULL DEFAULT '',
                         BirthDate       TEXT NOT NULL,
+                        Birthplace      TEXT NOT NULL DEFAULT '',
                         Gender          INTEGER NOT NULL,
                         CivilStatus     INTEGER NOT NULL,
                         Purok           TEXT NOT NULL DEFAULT '',
@@ -106,6 +108,8 @@ namespace BarangayVillaMTejeroSystem.Data
                         Requirements     TEXT NOT NULL DEFAULT '',
                         OrNumber         TEXT NOT NULL DEFAULT '',
                         Fee              REAL NOT NULL DEFAULT 0,
+                        BusinessType     TEXT NOT NULL DEFAULT '',
+                        BusinessTax      REAL NOT NULL DEFAULT 0,
                         Status           INTEGER NOT NULL DEFAULT 0,
                         Remarks          TEXT NOT NULL DEFAULT '',
                         RequestedBy      INTEGER NOT NULL DEFAULT 0,
@@ -127,10 +131,41 @@ namespace BarangayVillaMTejeroSystem.Data
                 cmd.ExecuteNonQuery();
             }
 
+            EnsureColumnExists(connection, "Residents", "AliasName", "TEXT NOT NULL DEFAULT ''");
+            EnsureColumnExists(connection, "Residents", "Birthplace", "TEXT NOT NULL DEFAULT ''");
+            EnsureColumnExists(connection, "IssuedDocuments", "BusinessType", "TEXT NOT NULL DEFAULT ''");
+            EnsureColumnExists(connection, "IssuedDocuments", "BusinessTax", "REAL NOT NULL DEFAULT 0");
+
             SeedResidentsIfEmpty(connection);
             SeedUserAccountsIfEmpty(connection);
             SeedDocumentsIfEmpty(connection);
             SeedTransactionLogsIfEmpty(connection);
+        }
+
+        /// <summary>
+        /// Adds a column to an already-existing table if it isn't there yet.
+        /// `CREATE TABLE IF NOT EXISTS` only applies the full schema the very
+        /// first time a table is created, so databases created by an older
+        /// version of this app (before a column was added here) need this to
+        /// pick up the new column without losing existing data.
+        /// </summary>
+        private static void EnsureColumnExists(SqliteConnection connection, string table, string column, string columnDefSql)
+        {
+            using (var check = connection.CreateCommand())
+            {
+                check.CommandText = $"PRAGMA table_info({table});";
+                using var reader = check.ExecuteReader();
+                while (reader.Read())
+                {
+                    string existingName = reader.GetString(reader.GetOrdinal("name"));
+                    if (string.Equals(existingName, column, StringComparison.OrdinalIgnoreCase))
+                        return; // already present
+                }
+            }
+
+            using var alter = connection.CreateCommand();
+            alter.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {columnDefSql};";
+            alter.ExecuteNonQuery();
         }
 
         private static long CountRows(SqliteConnection connection, string table)

@@ -26,10 +26,13 @@ namespace BarangayVillaMTejeroSystem.Forms
         private TextBox _txtFirstName;
         private TextBox _txtMiddleName;
         private TextBox _txtSuffix;
+        private TextBox _txtAliasName;
         private DateTimePicker _dtBirthDate;
+        private Label _lblAge;
+        private TextBox _txtBirthplace;
+        private ComboBox _cmbPurok;
         private ComboBox _cmbGender;
         private ComboBox _cmbCivilStatus;
-        private TextBox _txtPurok;
         private TextBox _txtContactNo;
         private TextBox _txtOccupation;
         private TextBox _txtHousehold;
@@ -50,10 +53,19 @@ namespace BarangayVillaMTejeroSystem.Forms
             dlg._txtFirstName.Text = resident.FirstName;
             dlg._txtMiddleName.Text = resident.MiddleName;
             dlg._txtSuffix.Text = resident.Suffix;
+            dlg._txtAliasName.Text = resident.AliasName;
             dlg._dtBirthDate.Value = resident.BirthDate == default ? DateTime.Today.AddYears(-18) : resident.BirthDate;
+            dlg.RefreshAgeLabel();
+            dlg._txtBirthplace.Text = resident.Birthplace;
             dlg._cmbGender.SelectedIndex = resident.Gender == Gender.Male ? 0 : 1;
             dlg._cmbCivilStatus.SelectedIndex = (int)resident.CivilStatus;
-            dlg._txtPurok.Text = resident.Purok;
+            // Match however the purok was stored ("4", "Purok 4", "PUROK 4", ...)
+            // to the matching dropdown entry; if it's something the dropdown
+            // doesn't have (blank, or an old typo), just leave nothing selected
+            // rather than guessing.
+            string normalizedPurok = NormalizePurokForDropdown(resident.Purok);
+            int purokIdx = string.IsNullOrEmpty(normalizedPurok) ? -1 : dlg._cmbPurok.Items.IndexOf(normalizedPurok);
+            dlg._cmbPurok.SelectedIndex = purokIdx;
             dlg._txtContactNo.Text = resident.ContactNo;
             dlg._txtOccupation.Text = resident.Occupation;
             dlg._txtHousehold.Text = string.Join(Environment.NewLine, resident.HouseholdMembers ?? new System.Collections.Generic.List<string>());
@@ -138,7 +150,10 @@ namespace BarangayVillaMTejeroSystem.Forms
             _txtMiddleName = AddField(scrollArea, "MIDDLE NAME", 28, 184, ref y, advanceY: false);
             _txtSuffix = AddField(scrollArea, "SUFFIX (OPTIONAL)", 228, 184, ref y);
 
-            // ----- Birth date -----
+            // ----- Alias / "also known as" (used by the Certificate of Oneness) -----
+            _txtAliasName = AddField(scrollArea, "ALSO KNOWN AS / ALIAS (OPTIONAL)", 28, fieldWidth, ref y);
+
+            // ----- Birth date (age is derived automatically — never entered by hand) -----
             var lblBirth = new Label
             {
                 Text = "BIRTH DATE",
@@ -154,12 +169,28 @@ namespace BarangayVillaMTejeroSystem.Forms
                 Format = DateTimePickerFormat.Short,
                 Font = new Font("Segoe UI", 10f),
                 Location = new Point(28, y),
-                Width = fieldWidth,
+                Width = 260,
                 MaxDate = DateTime.Today,
                 Value = DateTime.Today.AddYears(-18)
             };
+            _dtBirthDate.ValueChanged += (_, _) => RefreshAgeLabel();
             scrollArea.Controls.Add(_dtBirthDate);
+
+            _lblAge = new Label
+            {
+                Text = "Age: 18",
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                ForeColor = NavyDark,
+                AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Size = new Size(114, 24),
+                Location = new Point(298, y + 2)
+            };
+            scrollArea.Controls.Add(_lblAge);
             y += 44;
+
+            // ----- Place of birth (fills the BIRTHPLACE line on the Barangay Clearance templates) -----
+            _txtBirthplace = AddField(scrollArea, "PLACE OF BIRTH", 28, fieldWidth, ref y);
 
             // ----- Gender / Civil status row -----
             var lblGender = new Label { Text = "GENDER", Font = new Font("Segoe UI", 8f, FontStyle.Bold), ForeColor = MutedText, AutoSize = true, Location = new Point(28, y) };
@@ -183,7 +214,15 @@ namespace BarangayVillaMTejeroSystem.Forms
             scrollArea.Controls.Add(_cmbCivilStatus);
             y += 44;
 
-            _txtPurok = AddField(scrollArea, "PUROK / ADDRESS", 28, fieldWidth, ref y);
+            var lblPurok = new Label { Text = "PUROK / ADDRESS", Font = new Font("Segoe UI", 8f, FontStyle.Bold), ForeColor = MutedText, AutoSize = true, Location = new Point(28, y) };
+            scrollArea.Controls.Add(lblPurok);
+            y += 20;
+            _cmbPurok = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Segoe UI", 10f), Location = new Point(28, y), Width = fieldWidth, FlatStyle = FlatStyle.Flat };
+            for (int i = 1; i <= 7; i++) _cmbPurok.Items.Add($"Purok {i}");
+            _cmbPurok.SelectedIndex = 0;
+            scrollArea.Controls.Add(_cmbPurok);
+            y += 44;
+
             _txtContactNo = AddField(scrollArea, "CONTACT NUMBER", 28, fieldWidth, ref y);
             _txtOccupation = AddField(scrollArea, "OCCUPATION", 28, fieldWidth, ref y);
 
@@ -257,9 +296,9 @@ namespace BarangayVillaMTejeroSystem.Forms
                 Text = "CANCEL",
                 Size = new Size(184, 42),
                 Location = new Point(28, 16),
-                NormalColor = Color.FromArgb(240, 242, 245),
-                HoverColor = Color.FromArgb(228, 231, 236),
-                ForeColor = NavyDark,
+                NormalColor = Color.FromArgb(200, 29, 37),
+                HoverColor = Color.FromArgb(200, 29, 37),
+                ForeColor = Color.White,
                 DialogResult = DialogResult.Cancel
             };
             footer.Controls.Add(btnCancel);
@@ -277,6 +316,8 @@ namespace BarangayVillaMTejeroSystem.Forms
 
             AcceptButton = btnSave;
             CancelButton = btnCancel;
+
+            RefreshAgeLabel();
         }
 
         private TextBox AddField(Panel host, string label, int x, int width, ref int y, bool advanceY = true)
@@ -313,6 +354,36 @@ namespace BarangayVillaMTejeroSystem.Forms
             return textBox;
         }
 
+        /// <summary>
+        /// Purok used to be free-typed, so old records may say "4", "Purok 4",
+        /// or "PUROK 4" — normalize any of those to the exact "Purok 4" form the
+        /// dropdown's items use, so editing an old resident still pre-selects
+        /// the right entry instead of leaving the dropdown blank.
+        /// </summary>
+        private static string NormalizePurokForDropdown(string purok)
+        {
+            string v = (purok ?? "").Trim();
+            if (v.Length == 0) return "";
+            if (v.StartsWith("purok", StringComparison.OrdinalIgnoreCase))
+                v = v.Substring(5).TrimStart('.', '-', ':', ' ');
+            return v.Length == 0 ? "" : $"Purok {v}";
+        }
+
+        /// <summary>
+        /// Recomputes the displayed age from the selected birth date, using the
+        /// same "years as of today" rule as Resident.Age, so what the clerk sees
+        /// while filling the form always matches what gets stored and printed.
+        /// </summary>
+        private void RefreshAgeLabel()
+        {
+            var birthDate = _dtBirthDate.Value.Date;
+            var today = DateTime.Today;
+            int age = today.Year - birthDate.Year;
+            if (birthDate > today.AddYears(-age)) age--;
+            age = Math.Max(age, 0);
+            _lblAge.Text = $"Age: {age}";
+        }
+
         private void BtnSave_Click(object sender, EventArgs e)
         {
             _lblError.Text = "";
@@ -321,7 +392,9 @@ namespace BarangayVillaMTejeroSystem.Forms
             string firstName = _txtFirstName.Text.Trim();
             string middleName = _txtMiddleName.Text.Trim();
             string suffix = _txtSuffix.Text.Trim();
-            string purok = _txtPurok.Text.Trim();
+            string aliasName = _txtAliasName.Text.Trim();
+            string birthplace = _txtBirthplace.Text.Trim();
+            string purok = _cmbPurok.SelectedItem?.ToString() ?? "";
             string contactNo = _txtContactNo.Text.Trim();
             string occupation = _txtOccupation.Text.Trim();
             var gender = _cmbGender.SelectedIndex == 0 ? Gender.Male : Gender.Female;
@@ -360,7 +433,9 @@ namespace BarangayVillaMTejeroSystem.Forms
                 FirstName = firstName,
                 MiddleName = middleName,
                 Suffix = suffix,
+                AliasName = aliasName,
                 BirthDate = _dtBirthDate.Value.Date,
+                Birthplace = birthplace,
                 Gender = gender,
                 CivilStatus = civilStatus,
                 Purok = purok,
