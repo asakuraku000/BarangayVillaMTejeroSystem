@@ -15,12 +15,10 @@ namespace BarangayVillaMTejeroSystem.Models
         CertificateOfIndigency,
         BarangayClearanceEmployment,
         BarangayClearanceBusiness,
-        SchoolRequirement,
 
-        // Added after the original five — appended at the end (not inserted
-        // in the middle) so the integer values already stored in the
-        // IssuedDocuments.DocumentType column for existing records keep
-        // pointing at the same document type.
+        // Appended at the end (not inserted in the middle) so the integer
+        // values already stored in the IssuedDocuments.DocumentType column
+        // for existing records keep pointing at the same document type.
         CertificateOfOneness
     }
 
@@ -58,17 +56,34 @@ namespace BarangayVillaMTejeroSystem.Models
         public List<string> Requirements { get; set; } = new();
 
         public string OrNumber { get; set; } = string.Empty;
-        public decimal Fee { get; set; }
+
+        /// <summary>Community Tax Certificate (CTC) number, a.k.a. "Res. Cert. No.",
+        /// typed in by staff from the resident's Cedula — free text, entered
+        /// exactly as-is (no "BVMT-" prefix or other auto-generated formatting).
+        /// Distinct from ControlNo, which stays system-generated. Meaningful for
+        /// DocumentType.BarangayClearanceEmployment and .BarangayClearanceBusiness
+        /// requests — both templates print it.</summary>
+        public string CtcNo { get; set; } = string.Empty;
+
+        /// <summary>Fee amount(s). Free text so staff can list more than one amount
+        /// (one per line, pressing Enter between each) when a clearance covers more
+        /// than one business — printed as-is; numeric-looking lines are formatted as
+        /// currency ("Php ###.00") and any other line is printed exactly as typed.</summary>
+        public string Fee { get; set; } = "0.00";
 
         /// <summary>Type of business (e.g. "Food Stand", "Sari-Sari Store") printed
-        /// on the Barangay Clearance for Business template's fee schedule. Only
+        /// on the Barangay Clearance for Business template's fee schedule. Free text,
+        /// one business per line (press Enter to add another) so a clearance covering
+        /// more than one business — e.g. "1. Sari-Sari Store" / "2. Fermented Liquor" —
+        /// can be entered directly instead of being limited to a single line. Only
         /// meaningful for DocumentType.BarangayClearanceBusiness requests.</summary>
         public string BusinessType { get; set; } = string.Empty;
 
-        /// <summary>Separate business tax amount printed under the "BUSINESS TAX"
+        /// <summary>Separate business tax amount(s) printed under the "BUSINESS TAX"
         /// line of the same template — distinct from the general Fee above (which
-        /// covers the barangay permit fee).</summary>
-        public decimal BusinessTax { get; set; }
+        /// covers the barangay permit fee). Free text, one amount per line, lining up
+        /// line-for-line with the businesses listed in BusinessType.</summary>
+        public string BusinessTax { get; set; } = "0.00";
 
         public DocumentStatus Status { get; set; }
         public string Remarks { get; set; } = string.Empty;
@@ -96,7 +111,6 @@ namespace BarangayVillaMTejeroSystem.Models
             DocumentType.CertificateOfIndigency => "Certificate of Indigency",
             DocumentType.BarangayClearanceEmployment => "Barangay Clearance — Employment",
             DocumentType.BarangayClearanceBusiness => "Barangay Clearance — Business",
-            DocumentType.SchoolRequirement => "Clearance / Certificate — School Requirement",
             DocumentType.CertificateOfOneness => "Certificate of Oneness",
             _ => type.ToString()
         };
@@ -107,7 +121,6 @@ namespace BarangayVillaMTejeroSystem.Models
             DocumentType.CertificateOfIndigency => "CERTIFICATE OF INDIGENCY",
             DocumentType.BarangayClearanceEmployment => "BARANGAY CLEARANCE",
             DocumentType.BarangayClearanceBusiness => "BARANGAY CLEARANCE",
-            DocumentType.SchoolRequirement => "CERTIFICATE / CLEARANCE",
             DocumentType.CertificateOfOneness => "CERTIFICATE OF ONENESS",
             _ => "BARANGAY DOCUMENT"
         };
@@ -139,12 +152,6 @@ namespace BarangayVillaMTejeroSystem.Models
                 "Sketch of business location",
                 "Proof of Residency"
             },
-            DocumentType.SchoolRequirement => new[]
-            {
-                "Valid ID",
-                "School ID / Enrollment form",
-                "Proof of Residency"
-            },
             DocumentType.CertificateOfOneness => new[]
             {
                 "Valid ID (both names, if available)",
@@ -167,7 +174,6 @@ namespace BarangayVillaMTejeroSystem.Models
             DocumentType.BarangayClearanceEmployment => "BarangayClearance.docx",
             DocumentType.BarangayClearanceBusiness => "BarangayClearanceForBusiness.docx",
             DocumentType.CertificateOfOneness => "CertificateOfOneness.docx",
-            DocumentType.SchoolRequirement => "SchoolRequirement.docx",
             _ => null
         };
     }

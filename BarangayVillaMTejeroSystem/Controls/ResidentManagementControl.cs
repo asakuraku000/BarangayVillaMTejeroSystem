@@ -157,7 +157,9 @@ namespace BarangayVillaMTejeroSystem.Controls
             {
                 Text = "＋ ADD RESIDENT",
                 Size = new Size(180, 40),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                NormalColor = Color.FromArgb(60, 130, 90),
+                HoverColor = Color.FromArgb(60, 130, 90)
             };
             btnAdd.Click += (_, _) => OpenAddDialog();
             toolbar.Controls.Add(btnAdd);

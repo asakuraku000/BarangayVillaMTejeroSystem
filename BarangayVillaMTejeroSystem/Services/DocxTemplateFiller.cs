@@ -19,8 +19,21 @@ namespace BarangayVillaMTejeroSystem.Services
     /// </summary>
     public static class DocxTemplateFiller
     {
-        private static readonly Regex TextRunRegex =
-            new Regex(@"<w:t(\s+[^>]*)?>(.*?)</w:t>", RegexOptions.Singleline);
+        // Word sometimes writes an *empty* text run as a self-closing tag,
+        // e.g. <w:t xml:space="preserve"/> (no separate closing tag) — most
+        // often right next to the "_GoBack" bookmark it drops at the last
+        // cursor position when a document is saved. The old pattern
+        // "<w:t...>(.*?)</w:t>" doesn't have an alternative for that
+        // self-closing form, so its lazy ".*?" would keep matching forward
+        // past the "/>" and swallow everything up to the *next* real
+        // </w:t> in the document — silently absorbing paragraph/run XML as
+        // literal text, which got re-escaped into the output and corrupted
+        // the .docx. The self-closing alternative below is matched first so
+        // an empty run is captured on its own instead of bleeding into
+        // whatever follows it.
+        private static readonly Regex TextRunRegex = new Regex(
+            @"<w:t(?<selfClose>\s+[^>]*)?/>|<w:t(?<attrs>\s+[^>]*)?>(?<text>.*?)</w:t>",
+            RegexOptions.Singleline);
 
         // ----- Public API -----
 
@@ -72,7 +85,7 @@ namespace BarangayVillaMTejeroSystem.Services
 
             // Work with the *unescaped* text of each run so tokens and values
             // compare against real characters (and so we don't double-escape).
-            var texts = matches.Select(m => UnescapeXml(m.Groups[2].Value)).ToList();
+            var texts = matches.Select(m => UnescapeXml(m.Groups["text"].Value)).ToList();
 
             foreach (var kvp in values)
             {
@@ -119,15 +132,52 @@ namespace BarangayVillaMTejeroSystem.Services
                 }
             }
 
-            // Rebuild the XML, substituting each run's (re-escaped) text.
+            // Rebuild the XML, substituting each run's (re-escaped) text. Some
+            // tokens (e.g. a Fee/BusinessType/BusinessTax list with more than one
+            // business, one per line) can now contain embedded newlines and tabs.
+            // Word does not treat a literal "\n" or "\t" character inside <w:t> as
+            // a line break or a tab stop, so each line becomes its own <w:t> with
+            // a real <w:br/> between them, and each tab-separated column within a
+            // line becomes its own <w:t> with a real <w:tab/> between them — all
+            // still inside the same <w:r> run, so it keeps that run's original
+            // formatting (font, size, bold, etc.). This is what lets a token's
+            // value carry its own per-row "label <TAB> amount" column instead of
+            // depending on a fixed number of literal <w:tab/> elements baked into
+            // the template, which only ever lined up for exactly one row.
             var result = new StringBuilder();
             int cursor = 0;
             for (int i = 0; i < matches.Count; i++)
             {
                 Match m = matches[i];
                 result.Append(xml, cursor, m.Index - cursor);
-                string attrs = m.Groups[1].Value; // e.g. " xml:space=\"preserve\""
-                result.Append($"<w:t{attrs}>{EscapeXml(texts[i])}</w:t>");
+                bool wasSelfClosing = m.Groups["selfClose"].Success;
+                string attrs = wasSelfClosing ? m.Groups["selfClose"].Value : m.Groups["attrs"].Value; // e.g. " xml:space=\"preserve\""
+                string text = texts[i];
+
+                if (text.Length == 0 && wasSelfClosing)
+                {
+                    // Untouched empty run — keep its original self-closing form.
+                    result.Append($"<w:t{attrs}/>");
+                }
+                else if (text.IndexOf('\n') >= 0 || text.IndexOf('\t') >= 0)
+                {
+                    string[] lines = text.Replace("\r\n", "\n").Split('\n');
+                    for (int li = 0; li < lines.Length; li++)
+                    {
+                        if (li > 0) result.Append("<w:br/>");
+                        string[] cells = lines[li].Split('\t');
+                        for (int ci = 0; ci < cells.Length; ci++)
+                        {
+                            if (ci > 0) result.Append("<w:tab/>");
+                            result.Append($"<w:t{attrs}>{EscapeXml(cells[ci])}</w:t>");
+                        }
+                    }
+                }
+                else
+                {
+                    result.Append($"<w:t{attrs}>{EscapeXml(text)}</w:t>");
+                }
+
                 cursor = m.Index + m.Length;
             }
             result.Append(xml, cursor, xml.Length - cursor);
@@ -183,10 +233,6 @@ namespace BarangayVillaMTejeroSystem.Services
                     Add("This is to certify that [NAME], [PERSONAL], is a resident of [ADDRESS].");
                     Add("He/She is hereby CLEARED to operate / engage in the stated business, having complied with the barangay's requirements and having no pending case or complaint filed against him/her in this barangay.");
                     Add("This clearance is issued upon the request of the above-named person for [PURPOSE].");
-                    break;
-                case DocumentType.SchoolRequirement:
-                    Add("This is to certify that [NAME], [PERSONAL], is a resident of [ADDRESS].");
-                    Add("He/She is a member of this barangay and this certification is issued in support of his/her school / scholarship requirement: [PURPOSE].");
                     break;
                 case DocumentType.CertificateOfOneness:
                     Add("This is to certify that [NAME], [PERSONAL], a bona fide resident of [ADDRESS], and [ALIAS], refer to one and the same person.", italic: true);

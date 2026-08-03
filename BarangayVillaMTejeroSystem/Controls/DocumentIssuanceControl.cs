@@ -54,10 +54,12 @@ namespace BarangayVillaMTejeroSystem.Controls
         private TextBox _txtOrNo;
         private TextBox _txtFee;
         private Panel _businessFieldsPanel;
+        private Panel _ctcFieldsPanel;
+        private TextBox _txtCtcNo;
         private TextBox _txtBusinessType;
         private TextBox _txtBusinessTax;
         private Panel _lowerFieldsPanel;
-        private int _businessFieldsStartY;
+        private int _ctcFieldsStartY;
         private RadioButton _rdoPending;
         private RadioButton _rdoApproved;
         private RadioButton _rdoRejected;
@@ -357,47 +359,91 @@ namespace BarangayVillaMTejeroSystem.Controls
             content.Controls.Add(_txtOrNo);
             y += 16 + 40;
 
-            content.Controls.Add(new FieldLabel("Fee (₱)", 0, y));
+            content.Controls.Add(new FieldLabel("Fee (₱) — one per line, Enter for more", 0, y));
             _txtFee = new TextBox
             {
                 Location = new Point(0, y + 16),
                 Width = w,
-                Height = 36,
+                Height = 56,
+                Multiline = true,
+                ScrollBars = ScrollBars.Vertical,
                 Font = new Font("Segoe UI", 9.5f),
                 BorderStyle = BorderStyle.FixedSingle,
                 Text = "0.00"
             };
             content.Controls.Add(_txtFee);
-            y += 16 + 40;
+            y += 16 + 56 + 8;
 
-            // ----- Business type / tax (only shown for Barangay Clearance – Business) -----
+            // ----- Res. Cert. / CTC No., and (business clearance only) Type of
+            // Business / Business Tax -----
             // Editable so staff can enter the actual business ("Food Stand", "Sari-Sari
             // Store", etc.) and its tax amount instead of a hard-coded sample on the
-            // printed clearance.
-            _businessFieldsPanel = new Panel
+            // printed clearance. Both boxes are multiline: when a clearance covers more
+            // than one business (e.g. a sari-sari store that also sells fermented
+            // liquor), staff can list each one on its own line — just press Enter to
+            // add the next line — instead of being limited to a single business/amount.
+            const int businessBoxHeight = 64;
+            const int businessBlockHeight = 16 + businessBoxHeight + 8; // label gap + box + spacing to next block
+            // Res. Cert. No. (a.k.a. CTC No. — the Community Tax Certificate /
+            // Cedula number) is a single-line, staff-typed value, never
+            // auto-generated with a "BVMT-" prefix the way ControlNo is, so it
+            // gets its own shorter block. It's printed on BOTH Barangay
+            // Clearance certificates (Employment and Business) — the Type of
+            // Business / Business Tax fields below it are Business-only — so
+            // it lives in its own panel with its own visibility toggle instead
+            // of being nested inside the business-only fields panel.
+            const int ctcBoxHeight = 36;
+            const int ctcBlockHeight = 16 + ctcBoxHeight + 8;
+
+            _ctcFieldsPanel = new Panel
             {
                 Location = new Point(0, y),
                 Width = w,
-                Height = 16 + 40 + 16 + 40,
+                Height = ctcBlockHeight,
                 BackColor = Color.Transparent
             };
-            _businessFieldsPanel.Controls.Add(new FieldLabel("Type of Business", 0, 0));
+            _ctcFieldsPanel.Controls.Add(new FieldLabel("Res. Cert. No. (CTC)", 0, 0));
+            _txtCtcNo = new TextBox
+            {
+                Location = new Point(0, 16),
+                Width = w,
+                Height = ctcBoxHeight,
+                Font = new Font("Segoe UI", 9.5f),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            _ctcFieldsPanel.Controls.Add(_txtCtcNo);
+            content.Controls.Add(_ctcFieldsPanel);
+            _ctcFieldsStartY = y;
+
+            _businessFieldsPanel = new Panel
+            {
+                Location = new Point(0, y + ctcBlockHeight),
+                Width = w,
+                Height = businessBlockHeight * 2,
+                BackColor = Color.Transparent
+            };
+
+            _businessFieldsPanel.Controls.Add(new FieldLabel("Type of Business — one per line, Enter for more", 0, 0));
             _txtBusinessType = new TextBox
             {
                 Location = new Point(0, 16),
                 Width = w,
-                Height = 36,
+                Height = businessBoxHeight,
+                Multiline = true,
+                ScrollBars = ScrollBars.Vertical,
                 Font = new Font("Segoe UI", 9.5f),
                 BorderStyle = BorderStyle.FixedSingle
             };
             _businessFieldsPanel.Controls.Add(_txtBusinessType);
 
-            _businessFieldsPanel.Controls.Add(new FieldLabel("Business Tax (₱)", 0, 16 + 40));
+            _businessFieldsPanel.Controls.Add(new FieldLabel("Business Tax (₱) — one per line, Enter for more", 0, businessBlockHeight));
             _txtBusinessTax = new TextBox
             {
-                Location = new Point(0, 16 + 40 + 16),
+                Location = new Point(0, businessBlockHeight + 16),
                 Width = w,
-                Height = 36,
+                Height = businessBoxHeight,
+                Multiline = true,
+                ScrollBars = ScrollBars.Vertical,
                 Font = new Font("Segoe UI", 9.5f),
                 BorderStyle = BorderStyle.FixedSingle,
                 Text = "0.00"
@@ -405,7 +451,6 @@ namespace BarangayVillaMTejeroSystem.Controls
             _businessFieldsPanel.Controls.Add(_txtBusinessTax);
 
             content.Controls.Add(_businessFieldsPanel);
-            _businessFieldsStartY = y;
 
             // Everything below the (optional) business fields lives in its own panel so it
             // can slide up and close the gap when that panel is hidden, instead of leaving
@@ -487,7 +532,7 @@ namespace BarangayVillaMTejeroSystem.Controls
             _lowerFieldsPanel.Height = ly;
             content.Controls.Add(_lowerFieldsPanel);
 
-            y += _businessFieldsPanel.Height + 14 + _lowerFieldsPanel.Height;
+            y += _ctcFieldsPanel.Height + _businessFieldsPanel.Height + 14 + _lowerFieldsPanel.Height;
             content.Height = y + padBottom;
 
             PopulateRequirements();
@@ -716,16 +761,30 @@ namespace BarangayVillaMTejeroSystem.Controls
         }
 
         /// <summary>
-        /// The Type of Business / Business Tax inputs only make sense for a
-        /// Barangay Clearance – Business request (they fill the fee-schedule
-        /// lines on that specific template), so they're hidden otherwise.
+        /// Res. Cert. / CTC No. is printed on both Barangay Clearance
+        /// certificates (Employment and Business), so its panel shows for
+        /// either — but Type of Business / Business Tax only make sense for
+        /// the Business clearance specifically (they fill the fee-schedule
+        /// lines on that one template), so that panel stays Business-only.
+        /// Whichever of the two panels are visible are stacked back-to-back,
+        /// and the lower panel (status/remarks/buttons) slides up to close
+        /// the gap when one or both are hidden.
         /// </summary>
         private void RefreshBusinessFieldsVisibility()
         {
-            _businessFieldsPanel.Visible = SelectedType == DocumentType.BarangayClearanceBusiness;
-            _lowerFieldsPanel.Location = new Point(
-                0,
-                _businessFieldsStartY + (_businessFieldsPanel.Visible ? _businessFieldsPanel.Height + 14 : 0));
+            var type = SelectedType;
+            bool showCtc = type == DocumentType.BarangayClearanceEmployment
+                         || type == DocumentType.BarangayClearanceBusiness;
+            bool showBusinessOnly = type == DocumentType.BarangayClearanceBusiness;
+
+            _ctcFieldsPanel.Visible = showCtc;
+
+            int businessY = _ctcFieldsStartY + (showCtc ? _ctcFieldsPanel.Height : 0);
+            _businessFieldsPanel.Location = new Point(0, businessY);
+            _businessFieldsPanel.Visible = showBusinessOnly;
+
+            int lowerY = businessY + (showBusinessOnly ? _businessFieldsPanel.Height + 14 : 0);
+            _lowerFieldsPanel.Location = new Point(0, lowerY);
         }
 
         /// <summary>
@@ -934,13 +993,10 @@ namespace BarangayVillaMTejeroSystem.Controls
             doc.ResidencyVerified = _chkResidency.Checked;
             doc.Requirements = _clbRequirements.CheckedItems.Cast<string>().ToList();
             doc.OrNumber = _txtOrNo.Text.Trim();
-            decimal fee = 0;
-            decimal.TryParse(_txtFee.Text.Trim(), out fee);
-            doc.Fee = fee;
+            doc.CtcNo = _txtCtcNo.Text.Trim();
+            doc.Fee = _txtFee.Text.Trim();
             doc.BusinessType = _txtBusinessType.Text.Trim();
-            decimal businessTax = 0;
-            decimal.TryParse(_txtBusinessTax.Text.Trim(), out businessTax);
-            doc.BusinessTax = businessTax;
+            doc.BusinessTax = _txtBusinessTax.Text.Trim();
             doc.Status = SelectedStatus;
             doc.Remarks = _txtRemarks.Text.Trim();
             doc.RequestedBy = _currentUser.UserId;
@@ -1034,6 +1090,7 @@ namespace BarangayVillaMTejeroSystem.Controls
             _chkResidency.Checked = false;
             PopulateRequirements();
             _txtOrNo.Clear();
+            _txtCtcNo.Text = DocumentService.SuggestNextCtcNo();
             _txtFee.Text = "0.00";
             _txtBusinessType.Clear();
             _txtBusinessTax.Text = "0.00";
@@ -1068,9 +1125,10 @@ namespace BarangayVillaMTejeroSystem.Controls
                 if (idx >= 0) _clbRequirements.SetItemChecked(idx, true);
             }
             _txtOrNo.Text = doc.OrNumber;
-            _txtFee.Text = doc.Fee.ToString("F2");
+            _txtCtcNo.Text = doc.CtcNo;
+            _txtFee.Text = doc.Fee;
             _txtBusinessType.Text = doc.BusinessType;
-            _txtBusinessTax.Text = doc.BusinessTax.ToString("F2");
+            _txtBusinessTax.Text = doc.BusinessTax;
             RefreshBusinessFieldsVisibility();
             _rdoPending.Checked = doc.Status == DocumentStatus.Pending;
             _rdoApproved.Checked = doc.Status == DocumentStatus.Approved;

@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Linq;
+using System.Text;
 using System.Windows.Forms;
 using BarangayVillaMTejeroSystem.Models;
 
@@ -137,15 +140,39 @@ namespace BarangayVillaMTejeroSystem.Services
                 ["[CIVILSTATUS]"] = civilStatusValue,
                 ["[PURPOSE]"] = string.IsNullOrWhiteSpace(doc.Purpose) ? "(not specified)" : doc.Purpose,
                 ["[DATE]"] = issuedDate.ToString("MMMM d, yyyy"),
+                // Numeric "Issued On:" date (e.g. "07-26-2026"), as opposed to
+                // [DATE] above which is spelled out in words — the two are printed
+                // in different spots on the same certificate.
+                ["[ISSUEDON]"] = issuedDate.ToString("MM-dd-yyyy"),
                 ["[CONTROLNO]"] = doc.ControlNo,
                 ["[ORNO]"] = string.IsNullOrWhiteSpace(doc.OrNumber) ? "(none)" : doc.OrNumber,
+                // Community Tax Certificate number, a.k.a. "Res. Cert. No." on
+                // the two Barangay Clearance templates (Employment and
+                // Business) — typed in by staff exactly as it appears on the
+                // resident's Cedula, never auto-generated with a "BVMT-"
+                // prefix the way ControlNo is.
+                ["[CTCNO]"] = string.IsNullOrWhiteSpace(doc.CtcNo) ? "(none)" : doc.CtcNo,
                 // Spelled out as "Php ###.00" explicitly (not culture-dependent
                 // ToString("C2")) so it always matches the original templates'
                 // wording regardless of what locale the machine running the app
-                // is set to.
-                ["[FEE]"] = $"Php {doc.Fee:N2}",
+                // is set to. Fee/BusinessTax can now have more than one line (one
+                // amount per business, e.g. a clearance covering both a sari-sari
+                // store and fermented liquor) — each line is formatted separately
+                // and printed as a real line break in the Word document.
+                ["[FEE]"] = FormatAmountLines(doc.Fee, "Php "),
                 ["[BUSINESSTYPE]"] = string.IsNullOrWhiteSpace(doc.BusinessType) ? "(not specified)" : doc.BusinessType,
-                ["[BUSINESSTAX]"] = doc.BusinessTax.ToString("N2"),
+                ["[BUSINESSTAX]"] = FormatAmountLines(doc.BusinessTax),
+                // Combined, row-per-line tokens for the Business Clearance
+                // template: each pairs a business type with its matching amount
+                // (by position — line 1 with line 1, line 2 with line 2, ...),
+                // separated by a literal tab. The template gives that tab a
+                // single right-aligned tab stop, so no matter how many
+                // businesses are listed, or how long a business's name is, its
+                // own amount lands at the right margin on its own line instead
+                // of drifting down onto a line by itself the way a shared, fixed
+                // number of tabs did.
+                ["[BUSINESSFEEROWS]"] = BuildBusinessRows(doc.BusinessType, doc.Fee, "Php "),
+                ["[BUSINESSTAXROWS]"] = BuildBusinessRows(doc.BusinessType, doc.BusinessTax, "Php "),
                 ["[ISSUEDBY]"] = string.IsNullOrWhiteSpace(issuedByName) ? "(Barangay Staff)" : issuedByName,
                 ["[CAPTAIN]"] = string.IsNullOrWhiteSpace(captainName) ? "BARANGAY CAPTAIN" : captainName.ToUpperInvariant(),
                 ["[REQUIREMENTS]"] = requirements,
@@ -159,6 +186,80 @@ namespace BarangayVillaMTejeroSystem.Services
                 ["[HIM/HER]"] = r.PronounObject,
                 ["[HIS/HER]"] = r.PronounPossessive
             };
+        }
+
+        /// <summary>
+        /// Splits a Fee/BusinessTax value into individual lines (staff enter one
+        /// amount per line — one per business — pressing Enter between each) and
+        /// formats every numeric-looking line as currency (e.g. "Php 100.00"),
+        /// leaving any non-numeric line printed exactly as typed. A single-line
+        /// value (the common case) is simply formatted on its own.
+        /// </summary>
+        private static string FormatAmountLines(string raw, string prefix = "")
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return $"{prefix}0.00";
+
+            var lines = raw.Replace("\r\n", "\n").Split('\n');
+            var formatted = lines.Select(line =>
+            {
+                string t = line.Trim();
+                if (t.Length == 0) return t;
+                return decimal.TryParse(t, NumberStyles.Number, CultureInfo.InvariantCulture, out decimal amount)
+                    ? $"{prefix}{amount:N2}"
+                    : t;
+            });
+            return string.Join("\n", formatted);
+        }
+
+        /// <summary>
+        /// Pairs each "Type of Business" line with its matching amount line by
+        /// position (line 1 with line 1, line 2 with line 2, ...), numbers every
+        /// row ("1.", "2.", ...), and joins the type and its amount with a
+        /// literal tab character. <see cref="DocxTemplateFiller"/> turns that
+        /// tab into a real Word tab-stop jump, so — paired with a single
+        /// right-aligned tab stop set on the template's paragraph — every row's
+        /// amount lands at the right margin on its own line, regardless of how
+        /// many rows there are or how long any one business name is.
+        ///
+        /// If the two lists are different lengths (e.g. staff typed a business
+        /// but forgot its amount, or vice versa), the missing side of that row
+        /// is left blank rather than defaulting to "0.00" — a blank amount is
+        /// obviously incomplete; a "0.00" would silently read as free.
+        /// </summary>
+        private static string BuildBusinessRows(string businessTypeRaw, string amountRaw, string prefix)
+        {
+            string[] types = SplitNonEmptyLines(businessTypeRaw);
+            if (types.Length == 0) types = new[] { "(not specified)" };
+
+            // FormatAmountLines forces a default "0.00" for a wholly blank input,
+            // which is right for a single amount but wrong here — a business
+            // with no amount typed at all should stay blank, not "Php 0.00".
+            string[] amounts = string.IsNullOrWhiteSpace(amountRaw)
+                ? Array.Empty<string>()
+                : FormatAmountLines(amountRaw, prefix).Replace("\r\n", "\n").Split('\n');
+
+            int rows = Math.Max(types.Length, amounts.Length);
+            var sb = new StringBuilder();
+            for (int i = 0; i < rows; i++)
+            {
+                string type = i < types.Length ? types[i] : "";
+                string amount = i < amounts.Length ? amounts[i] : "";
+                if (i > 0) sb.Append('\n');
+                sb.Append(rows > 1 ? $"{i + 1}. {type}" : type);
+                sb.Append('\t');
+                sb.Append(amount);
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>Splits a multi-line, one-per-line field into trimmed, non-blank lines.</summary>
+        private static string[] SplitNonEmptyLines(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return Array.Empty<string>();
+            return raw.Replace("\r\n", "\n").Split('\n')
+                       .Select(l => l.Trim())
+                       .Where(l => l.Length > 0)
+                       .ToArray();
         }
     }
 }

@@ -114,6 +114,31 @@ namespace BarangayVillaMTejeroSystem.Services
             return $"BVMT-{year}-{next:D4}";
         }
 
+        // ----- Res. Cert. / CTC No. suggestion (typed, not enforced) -----
+
+        /// <summary>
+        /// Best-effort convenience default for the Res. Cert. / CTC No. field:
+        /// one more than the highest purely-numeric CtcNo already on file, or
+        /// empty if there's nothing numeric to go on yet. Unlike ControlNo this
+        /// is only a starting point, never a generated ID — the real number
+        /// always comes off the resident's physical Cedula stub, so staff can
+        /// (and often will) type over it.
+        /// </summary>
+        public static string SuggestNextCtcNo()
+        {
+            using var connection = DatabaseHelper.CreateOpenConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                SELECT MAX(CAST(CtcNo AS INTEGER))
+                FROM IssuedDocuments
+                WHERE CtcNo GLOB '[0-9]*';";
+            object result = cmd.ExecuteScalar();
+            if (result == null || result is DBNull) return "";
+
+            long max = Convert.ToInt64(result);
+            return max <= 0 ? "" : (max + 1).ToString(CultureInfo.InvariantCulture);
+        }
+
         // ----- Internal helpers -----
 
         private static IReadOnlyList<BarangayDocument> Query(string sql)
@@ -142,9 +167,9 @@ namespace BarangayVillaMTejeroSystem.Services
             using var cmd = connection.CreateCommand();
             cmd.CommandText = @"
                 INSERT INTO IssuedDocuments
-                    (ControlNo, ResidentId, DocumentType, Purpose, ResidencyVerified, Requirements, OrNumber, Fee, BusinessType, BusinessTax, Status, Remarks, RequestedBy, DateRequested, DateProcessed)
+                    (ControlNo, ResidentId, DocumentType, Purpose, ResidencyVerified, Requirements, OrNumber, CtcNo, Fee, BusinessType, BusinessTax, Status, Remarks, RequestedBy, DateRequested, DateProcessed)
                 VALUES
-                    ($controlNo, $residentId, $type, $purpose, $residency, $requirements, $orNo, $fee, $businessType, $businessTax, $status, $remarks, $requestedBy, $dateRequested, $dateProcessed);";
+                    ($controlNo, $residentId, $type, $purpose, $residency, $requirements, $orNo, $ctcNo, $fee, $businessType, $businessTax, $status, $remarks, $requestedBy, $dateRequested, $dateProcessed);";
             BindFields(cmd, doc);
             cmd.ExecuteNonQuery();
 
@@ -166,6 +191,7 @@ namespace BarangayVillaMTejeroSystem.Services
                     ResidencyVerified = $residency,
                     Requirements = $requirements,
                     OrNumber = $orNo,
+                    CtcNo = $ctcNo,
                     Fee = $fee,
                     BusinessType = $businessType,
                     BusinessTax = $businessTax,
@@ -189,9 +215,10 @@ namespace BarangayVillaMTejeroSystem.Services
             cmd.Parameters.AddWithValue("$residency", doc.ResidencyVerified ? 1 : 0);
             cmd.Parameters.AddWithValue("$requirements", string.Join("|", doc.Requirements));
             cmd.Parameters.AddWithValue("$orNo", doc.OrNumber ?? "");
-            cmd.Parameters.AddWithValue("$fee", doc.Fee);
+            cmd.Parameters.AddWithValue("$ctcNo", doc.CtcNo ?? "");
+            cmd.Parameters.AddWithValue("$fee", doc.Fee ?? "0.00");
             cmd.Parameters.AddWithValue("$businessType", doc.BusinessType ?? "");
-            cmd.Parameters.AddWithValue("$businessTax", doc.BusinessTax);
+            cmd.Parameters.AddWithValue("$businessTax", doc.BusinessTax ?? "0.00");
             cmd.Parameters.AddWithValue("$status", (int)doc.Status);
             cmd.Parameters.AddWithValue("$remarks", doc.Remarks ?? "");
             cmd.Parameters.AddWithValue("$requestedBy", doc.RequestedBy);
@@ -214,9 +241,10 @@ namespace BarangayVillaMTejeroSystem.Services
                 Requirements = (reader.GetString(reader.GetOrdinal("Requirements")) ?? "")
                     .Split('|', StringSplitOptions.RemoveEmptyEntries).ToList(),
                 OrNumber = reader.GetString(reader.GetOrdinal("OrNumber")),
-                Fee = reader.GetDecimal(reader.GetOrdinal("Fee")),
+                CtcNo = reader.GetString(reader.GetOrdinal("CtcNo")),
+                Fee = ReadAsString(reader, "Fee"),
                 BusinessType = reader.GetString(reader.GetOrdinal("BusinessType")),
-                BusinessTax = reader.GetDecimal(reader.GetOrdinal("BusinessTax")),
+                BusinessTax = ReadAsString(reader, "BusinessTax"),
                 Status = (DocumentStatus)reader.GetInt32(reader.GetOrdinal("Status")),
                 Remarks = reader.GetString(reader.GetOrdinal("Remarks")),
                 RequestedBy = reader.GetInt32(reader.GetOrdinal("RequestedBy")),
@@ -229,5 +257,18 @@ namespace BarangayVillaMTejeroSystem.Services
 
         private static DateTime ParseDate(string value) =>
             DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+
+        /// <summary>
+        /// Reads a column as text regardless of whether the underlying SQLite value
+        /// is stored as text (new multi-line Fee/BusinessTax entries) or a plain
+        /// number (older rows saved back when these columns were REAL) — avoids an
+        /// InvalidCastException either way.
+        /// </summary>
+        private static string ReadAsString(SqliteDataReader reader, string column)
+        {
+            int ordinal = reader.GetOrdinal(column);
+            if (reader.IsDBNull(ordinal)) return "0.00";
+            return reader.GetValue(ordinal)?.ToString() ?? "0.00";
+        }
     }
 }

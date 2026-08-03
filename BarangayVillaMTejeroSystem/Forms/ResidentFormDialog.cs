@@ -307,7 +307,9 @@ namespace BarangayVillaMTejeroSystem.Forms
             {
                 Text = IsEditing ? "SAVE CHANGES" : "REGISTER RESIDENT",
                 Size = new Size(184, 42),
-                Location = new Point(228, 16)
+                Location = new Point(228, 16),
+                NormalColor = Color.FromArgb(60, 130, 90),
+                HoverColor = Color.FromArgb(60, 130, 90)
             };
             btnSave.Click += BtnSave_Click;
             footer.Controls.Add(btnSave);

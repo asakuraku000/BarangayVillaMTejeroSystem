@@ -107,9 +107,10 @@ namespace BarangayVillaMTejeroSystem.Data
                         ResidencyVerified INTEGER NOT NULL DEFAULT 0,
                         Requirements     TEXT NOT NULL DEFAULT '',
                         OrNumber         TEXT NOT NULL DEFAULT '',
-                        Fee              REAL NOT NULL DEFAULT 0,
+                        CtcNo            TEXT NOT NULL DEFAULT '',
+                        Fee              TEXT NOT NULL DEFAULT '0.00',
                         BusinessType     TEXT NOT NULL DEFAULT '',
-                        BusinessTax      REAL NOT NULL DEFAULT 0,
+                        BusinessTax      TEXT NOT NULL DEFAULT '0.00',
                         Status           INTEGER NOT NULL DEFAULT 0,
                         Remarks          TEXT NOT NULL DEFAULT '',
                         RequestedBy      INTEGER NOT NULL DEFAULT 0,
@@ -134,7 +135,8 @@ namespace BarangayVillaMTejeroSystem.Data
             EnsureColumnExists(connection, "Residents", "AliasName", "TEXT NOT NULL DEFAULT ''");
             EnsureColumnExists(connection, "Residents", "Birthplace", "TEXT NOT NULL DEFAULT ''");
             EnsureColumnExists(connection, "IssuedDocuments", "BusinessType", "TEXT NOT NULL DEFAULT ''");
-            EnsureColumnExists(connection, "IssuedDocuments", "BusinessTax", "REAL NOT NULL DEFAULT 0");
+            EnsureColumnExists(connection, "IssuedDocuments", "BusinessTax", "TEXT NOT NULL DEFAULT '0.00'");
+            EnsureColumnExists(connection, "IssuedDocuments", "CtcNo", "TEXT NOT NULL DEFAULT ''");
 
             SeedResidentsIfEmpty(connection);
             SeedUserAccountsIfEmpty(connection);
@@ -269,14 +271,13 @@ namespace BarangayVillaMTejeroSystem.Data
             // A handful of sample issued documents so the History view and the
             // dashboard stat cards show realistic data on first run. Resident
             // ids come from SeedResidentsIfEmpty above (1..10).
-            var seed = new (int ResidentId, int Type, string Purpose, int Status, string OrNo, decimal Fee, string Req, DateTime Requested, DateTime? Processed, string Remarks)[]
+            var seed = new (int ResidentId, int Type, string Purpose, int Status, string OrNo, string Fee, string Req, DateTime Requested, DateTime? Processed, string Remarks)[]
             {
-                (1, 0, "Proof of residence for bank loan application", 1, "OR-2026-0142", 30m, "Valid ID|Proof of Residency (utility bill / barangay ID)", new DateTime(2026, 1, 8), new DateTime(2026, 1, 8), ""),
-                (2, 1, "Medical assistance / financial aid request", 1, "OR-2026-0151", 0m, "Valid ID|Proof of Income / Indigency (cert from employer or unemployment)|Barangay Residency (if available)", new DateTime(2026, 1, 15), new DateTime(2026, 1, 15), "Indigent family, 4 dependents."),
-                (3, 2, "Pre-employment requirement", 1, "OR-2026-0160", 50m, "Valid ID|2 pcs passport-size photo|Barangay Residency Certificate", new DateTime(2026, 2, 2), new DateTime(2026, 2, 2), ""),
-                (4, 4, "School enrollment / scholarship requirement", 1, "OR-2026-0168", 30m, "Valid ID|School ID / Enrollment form|Proof of Residency", new DateTime(2026, 2, 19), new DateTime(2026, 2, 19), ""),
-                (5, 3, "Sari-sari store permit application", 0, "", 0m, "Valid ID|DTI/Permit (if registered)|Sketch of business location|Proof of Residency", new DateTime(2026, 3, 5), null, "Awaiting business sketch."),
-                (6, 0, "Postal ID application", 2, "", 0m, "Valid ID|Proof of Residency (utility bill / barangay ID)", new DateTime(2026, 3, 12), new DateTime(2026, 3, 12), "Applicant could not present valid proof of residency."),
+                (1, 0, "Proof of residence for bank loan application", 1, "OR-2026-0142", "30.00", "Valid ID|Proof of Residency (utility bill / barangay ID)", new DateTime(2026, 1, 8), new DateTime(2026, 1, 8), ""),
+                (2, 1, "Medical assistance / financial aid request", 1, "OR-2026-0151", "0.00", "Valid ID|Proof of Income / Indigency (cert from employer or unemployment)|Barangay Residency (if available)", new DateTime(2026, 1, 15), new DateTime(2026, 1, 15), "Indigent family, 4 dependents."),
+                (3, 2, "Pre-employment requirement", 1, "OR-2026-0160", "50.00", "Valid ID|2 pcs passport-size photo|Barangay Residency Certificate", new DateTime(2026, 2, 2), new DateTime(2026, 2, 2), ""),
+                (5, 3, "Sari-sari store permit application", 0, "", "0.00", "Valid ID|DTI/Permit (if registered)|Sketch of business location|Proof of Residency", new DateTime(2026, 3, 5), null, "Awaiting business sketch."),
+                (6, 0, "Postal ID application", 2, "", "0.00", "Valid ID|Proof of Residency (utility bill / barangay ID)", new DateTime(2026, 3, 12), new DateTime(2026, 3, 12), "Applicant could not present valid proof of residency."),
             };
 
             int counter = 1;
@@ -319,10 +320,9 @@ namespace BarangayVillaMTejeroSystem.Data
                 (new DateTime(2026, 1, 15, 10, 30, 0), 2, "Maria Santos", 0, "Signed in", "Staff session started"),
                 (new DateTime(2026, 1, 15, 10, 41, 0), 2, "Maria Santos", 2, "Generated Certificate of Indigency", "Control BVMT-2026-0002 for Maria Santos — Approved"),
                 (new DateTime(2026, 2, 2, 14, 3, 0), 1, "Hon. Juan Dela Cruz", 2, "Generated Barangay Clearance — Employment", "Control BVMT-2026-0003 for Pedro Reyes — Approved"),
-                (new DateTime(2026, 2, 19, 11, 20, 0), 2, "Maria Santos", 2, "Generated Clearance / Certificate — School Requirement", "Control BVMT-2026-0004 for Ana Garcia — Approved"),
-                (new DateTime(2026, 3, 5, 8, 50, 0), 3, "Pedro Reyes", 2, "Generated Barangay Clearance — Business", "Control BVMT-2026-0005 for Jose Lopez — Pending"),
+                (new DateTime(2026, 3, 5, 8, 50, 0), 3, "Pedro Reyes", 2, "Generated Barangay Clearance — Business", "Control BVMT-2026-0004 for Jose Lopez — Pending"),
                 (new DateTime(2026, 3, 12, 13, 15, 0), 1, "Hon. Juan Dela Cruz", 1, "Registered resident", "Ella Cruz added to Resident Records"),
-                (new DateTime(2026, 3, 12, 16, 40, 0), 1, "Hon. Juan Dela Cruz", 2, "Generated Certificate of Residency", "Control BVMT-2026-0006 for Rosa Fernandez — Rejected"),
+                (new DateTime(2026, 3, 12, 16, 40, 0), 1, "Hon. Juan Dela Cruz", 2, "Generated Certificate of Residency", "Control BVMT-2026-0005 for Rosa Fernandez — Rejected"),
                 (new DateTime(2026, 3, 20, 9, 0, 0), 1, "Hon. Juan Dela Cruz", 0, "Signed out", "Administrator session ended"),
             };
 
