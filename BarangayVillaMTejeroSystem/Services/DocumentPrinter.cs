@@ -139,7 +139,7 @@ namespace BarangayVillaMTejeroSystem.Services
                 ["[BIRTHPLACE]"] = string.IsNullOrWhiteSpace(r.Birthplace) ? "(not on file)" : r.Birthplace.ToUpperInvariant(),
                 ["[CIVILSTATUS]"] = civilStatusValue,
                 ["[PURPOSE]"] = string.IsNullOrWhiteSpace(doc.Purpose) ? "(not specified)" : doc.Purpose,
-                ["[DATE]"] = issuedDate.ToString("MMMM d, yyyy"),
+                ["[DATE]"] = FormatGivenThisDate(issuedDate),
                 // Numeric "Issued On:" date (e.g. "07-26-2026"), as opposed to
                 // [DATE] above which is spelled out in words — the two are printed
                 // in different spots on the same certificate.
@@ -185,6 +185,35 @@ namespace BarangayVillaMTejeroSystem.Services
                 ["[HE/SHE]"] = r.PronounSubject,
                 ["[HIM/HER]"] = r.PronounObject,
                 ["[HIS/HER]"] = r.PronounPossessive
+            };
+        }
+
+        /// <summary>
+        /// Formats the "Given/Issued this ___" date the way every original
+        /// sample certificate wrote it — an ordinal day number spelled out
+        /// against the month and year (e.g. "7th day of July, 2026"), instead
+        /// of the plain "July 7, 2026" a straight MMMM-d-yyyy format gives.
+        /// Only feeds [DATE] (the sentence inside the certificate body); the
+        /// numeric "Issued On: [ISSUEDON]" stamp elsewhere on the same
+        /// certificate is unrelated and keeps its own MM-dd-yyyy format.
+        /// </summary>
+        private static string FormatGivenThisDate(DateTime date)
+            => $"{date.Day}{OrdinalSuffix(date.Day)} day of {date:MMMM}, {date:yyyy}";
+
+        /// <summary>
+        /// "st"/"nd"/"rd"/"th" for a day-of-month number. The 11th–13th are
+        /// always "th" (never "11st", "12nd", "13rd"); every other day goes
+        /// by its last digit.
+        /// </summary>
+        private static string OrdinalSuffix(int day)
+        {
+            if (day % 100 is >= 11 and <= 13) return "th";
+            return (day % 10) switch
+            {
+                1 => "st",
+                2 => "nd",
+                3 => "rd",
+                _ => "th"
             };
         }
 
